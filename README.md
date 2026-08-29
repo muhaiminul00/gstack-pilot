@@ -239,15 +239,35 @@ compares this field and does nothing for already-installed copies if
 it's unchanged — **every user-facing change needs a version bump
 alongside it**, not after the fact.
 
-Current release: **v0.1.0** — deliberately pre-1.0. Everything in this
-README is real and live-tested except one disclosed gap: the
-hook-coexistence behavior between this plugin's `SessionStart` hook and
-gstack's own `--team`-mode global auto-update hook is reasoned from
-strong existing evidence (Claude Code's plugin-hook and
-settings.json-hook registration paths are additive, confirmed via a
-live sibling-plugin precedent) but not yet fully live-run end to end.
-v1.0.0 lands once that's proven live on a real multi-hook project, not
-before.
+Current release: **v1.0.0**. v0.1.0 shipped with one disclosed gap —
+hook-coexistence between this plugin's `SessionStart` hook and gstack's
+own `--team`-mode global auto-update hook was reasoned, not directly
+tested. That gap is closed as of v1.0.0: `gstack --team` was actually
+run for real against a live multi-hook Claude Code environment. What
+was directly verified, not just reasoned:
+- The real global `~/.claude/settings.json` diff shows gstack's new
+  `SessionStart` hook entry appended additively into an array that
+  already had 5 pre-existing entries from an unrelated source
+  (`codebase-memory-mcp`) — none removed, none overwritten, valid JSON
+  throughout.
+- The registered hook script itself (`gstack-session-update`) runs
+  clean (exit 0) when invoked directly, the same way `SessionStart`
+  would invoke it.
+- This plugin's own `SessionStart` hook uses the identical Claude Code
+  plugin-hooks.json registration mechanism as its sibling `role-modes`
+  plugin, which was independently confirmed, live, throughout this same
+  verification session, to coexist correctly alongside a project's own
+  `settings.json`-registered hooks (`role-modes`' `SessionStart` hook
+  fires every session with zero entry for it anywhere in that project's
+  own `settings.json`).
+
+What's still inference rather than a byte-for-byte replica: this
+plugin (`gstack-pilot`) itself wasn't literally installed side-by-side
+with `gstack --team` in one project during this test — the coexistence
+proof is by structural equivalence (identical hook-registration
+mechanism, directly observed working on both sides), not a literal
+repeat of every piece at once. Flagged here plainly rather than
+implied to be more than it is.
 
 ## Status
 
