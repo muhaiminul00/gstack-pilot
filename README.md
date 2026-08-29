@@ -78,6 +78,12 @@ plugin — `role-modes` alone is simpler and has one less moving part.
 
 That third line matters — see [why below](#plugin-install-doesnt-activate-immediately).
 
+**Onboarding a whole team?** [`TEAM_SETUP.md`](TEAM_SETUP.md) is a short,
+copy-pasteable setup sequence for teammates (including how to hand the
+gstack-install step to their own Claude Code session for retry-on-failure),
+and [`VERIFICATION_CHECKLIST.md`](VERIFICATION_CHECKLIST.md) gives concrete,
+checkable behaviors for judging whether the install actually worked.
+
 **If your project also wants gstack itself, team-installed:**
 
 ```bash
