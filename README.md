@@ -245,7 +245,18 @@ compares this field and does nothing for already-installed copies if
 it's unchanged — **every user-facing change needs a version bump
 alongside it**, not after the fact.
 
-Current release: **v1.0.0**. v0.1.0 shipped with one disclosed gap —
+Current release: **v1.0.1**. Patch fix over v1.0.0: first real-world
+use (on `zm-brain`, see Status below) found the `office-hours` vs
+`plan-eng-review` branch-selection criterion under-specified —
+tentative-sounding phrasing ("propose reviving X") could misroute
+already-scoped work to `office-hours` instead of `plan-eng-review`.
+Nothing executed on the wrong branch during the test (no side effects)
+— the self-correction before acting is exactly the chain mechanism's
+safety property working as intended, not luck. Fixed: `commander.md`'s
+criterion now has an explicit disambiguator — a prior document already
+naming the work as scoped wins over surface phrasing, always.
+
+v0.1.0 shipped with one disclosed gap —
 hook-coexistence between this plugin's `SessionStart` hook and gstack's
 own `--team`-mode global auto-update hook was reasoned, not directly
 tested. That gap is closed as of v1.0.0: `gstack --team` was actually
@@ -277,9 +288,23 @@ implied to be more than it is.
 
 ## Status
 
-Built and validated in isolation. Not yet run against a real team
-project end to end — that's the next real proof point, not a
-formality. If you hit something this README doesn't cover, that's a
+Proven end to end on a real team project, not just built in isolation.
+`zm-brain` (github.com/muhaiminul00/zm-brain) has run this plugin
+through three real changes, each the full route: feature branch → PR →
+gstack's actual `review` skill → merge —
+
+- A full `CLAUDE.md` governance rewrite (real onboarding gate
+  surfaced and handled, one real doc-accuracy finding auto-fixed by
+  `review`).
+- A `README.md` fix + onboarding pointer (a second real finding, at
+  its actual source this time).
+- A canonical-docs re-verification note (zero findings; scope-drift
+  detection correctly caught an unrelated uncommitted change sitting
+  in the repo, three consecutive times, and correctly left it alone).
+
+That live use is also what surfaced v1.0.1's real routing bug (see
+Releases above) — proof the verification loop itself works, not just
+the plugin. If you hit something this README doesn't cover, that's a
 gap in the plugin's testing, not yours to route around silently — open
 an issue.
 
