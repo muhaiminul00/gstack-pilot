@@ -1,0 +1,30 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "gstack-pilot",
+  "description": "Marketplace for the gstack-pilot plugin - role-modes' three-mode system natively chained into the gstack skill suite.",
+  "owner": {
+    "name": "Muhaiminul Abedin Farhan",
+    "url": "https://github.com/muhaiminul00"
+  },
+  "plugins": [
+    {
+      "name": "gstack-pilot",
+      "source": "./",
+      "description": "Portable three-mode operating system for Claude Code, natively chained into gstack - Commander plans via office-hours/plan-eng-review/autoplan, Execute wraps up via review/qa/ship on a PR-first flow.",
+      "author": {
+        "name": "Muhaiminul Abedin Farhan",
+        "url": "https://github.com/muhaiminul00"
+      },
+      "category": "workflow",
+      "keywords": [
+        "workflow",
+        "modes",
+        "planning",
+        "orchestration",
+        "role-based",
+        "build-cards",
+        "gstack"
+      ]
+    }
+  ]
+}
