@@ -102,32 +102,52 @@ against.
 
 ## Recommended Approach
 
-**Approach B: Sync gate + live PR-scope collision check.**
+**Approach B: Sync gate + live PR-scope collision check, hook-enforced.**
 
-Three files change, not one — the adversarial review (below) caught that
-`execute.md` alone is insufficient: Execute mode *persists* across sessions
-via `.claude/hooks/state/mode.json`, and a resumed session gets its
-instructions from `hooks/session-start.js`'s condensed `modeInstructions.execute`
-string, which does not re-read `commands/execute.md`. Without touching both,
-a teammate resuming an already-Execute session — exactly the multi-person
+Revised after the outside-voice (Codex) pass: prose-only enforcement
+(Execute *told* to run the checks) doesn't guarantee they run "every time,"
+per this design's own Success Criteria wording. Chosen fix — a real
+executable gate, not stronger prose — adds two more files beyond the
+original three, described after them below.
+
+Five files change (plus a sixth, `TEAM_SETUP.md`, for the `gh` prerequisite
+step — six total, not "three," an earlier miscount the outside-voice pass
+caught) — the adversarial review (below) caught that `execute.md` alone is
+insufficient: Execute mode *persists* across sessions via
+`.claude/hooks/state/mode.json`, and a resumed session gets its instructions
+from `hooks/session-start.js`'s condensed `modeInstructions.execute` string,
+which does not re-read `commands/execute.md`. Without touching both, a
+teammate resuming an already-Execute session — exactly the multi-person
 scenario this design exists for — never sees the new pre-flight step.
 
 **1. `commands/execute.md`** — add a pre-flight block, positioned before the
 existing "implement the approved scope" step and before any branch is
 created:
 
-1. `git status --porcelain` — if dirty, STOP. Report the exact files and ask
-   the human how to proceed (commit, stash themselves, or confirm these
-   changes belong to this task). Never auto-stash or auto-switch, and never
-   move off the currently checked-out branch without asking first.
+0. **Session-kind gate, applies to every STOP below:** if this Execute
+   invocation is headless/spawned (no human to answer), any of the STOP
+   conditions in steps 1/2/4 below resolve to **BLOCKED**, not a question —
+   state the blocker plainly and halt, never auto-proceed. This matches this
+   project's existing AskUserQuestion-unavailable failure-fallback pattern
+   (headless → BLOCKED) rather than inventing a new convention. Only an
+   interactive session gets the STOP-and-ask behavior described below.
+1. `git status --porcelain` — if dirty, STOP (or BLOCKED per step 0). Report
+   the exact files and ask the human how to proceed (commit, stash
+   themselves, or confirm these changes belong to this task). Never
+   auto-stash or auto-switch, and never move off the currently checked-out
+   branch without asking first.
 2. Resolve the base branch explicitly: the repo's default branch via
    `gh repo view --json defaultBranchRef`. (An override via a Build-Card-
    named integration branch is deferred — see Open Questions; `build-cards`
    has no such field today and adding one is out of scope for this card.)
-   `git fetch origin`, then compare local base to `origin/<base>`. If behind,
-   fast-forward (`git pull --ff-only`) before creating the task branch. If
-   the fast-forward fails (base has diverged), STOP, report the divergence,
-   and ask — never force, never auto-checkout.
+   Update the local base ref **without checking it out**:
+   `git fetch origin <base>:<base>` — this lands the fast-forward on the
+   base ref directly, safe regardless of what branch Execute currently has
+   checked out (a plain checkout-then-pull would move the working tree away
+   from an in-progress task branch, contradicting this design's own
+   never-switch-branches-without-asking rule). If the ref update fails
+   because local `<base>` is checked out elsewhere or has diverged, STOP (or
+   BLOCKED per step 0), report why, and ask — never force, never auto-checkout.
 3. Create the task branch from the now-current base. **This replaces, not
    duplicates, the existing wrap-up-chain step 2 ("commit on a feature
    branch, not the default branch")** — that step's wording changes from
@@ -136,16 +156,31 @@ created:
    edits `execute.md`'s existing wrap-up-chain step 2 text, not just its
    pre-flight section — flagged explicitly so the Build Card scopes both
    edits to the same file, not just the new block.
-4. If `gh` CLI is available: `gh pr list --state open --json number,headRefName,files`
-   and diff the returned file paths against the current Build Card's
-   `Scope` field (see build-cards change below) using exact-path-or-prefix
-   matching — a listed directory matches any file under it. On any overlap,
-   **stop and ask** the human whether to proceed, coordinate with the other
-   PR's author, or adjust scope — a real STOP, not a printed warning an
-   agent can ignore and continue past. If `gh` isn't available or the API
-   call fails, disclose plainly ("PR-scope collision check unavailable —
-   `gh` not found/unreachable") and fall through to step 5 without blocking.
-5. Proceed to implementation as `execute.md` already defines.
+4. If `gh` CLI is available: `gh pr list --state open --limit 200 --json number,headRefName,files,author`
+   and **exclude any PR authored by the current `gh api user` login** before
+   diffing — without this, a resumed task with your own open PR touching the
+   same `Scope` paths collides with itself, a guaranteed false positive on
+   every resumed session, not an edge case. Diff the remaining PRs' file
+   paths against the current Build Card's `Scope` field (see build-cards
+   change below) using exact-path-or-prefix matching — a listed directory
+   matches any file under it. If the result count hits the `--limit` (200),
+   disclose "more open PRs than checked" rather than silently treating the
+   returned page as full coverage. On any overlap, **stop and ask** (or
+   BLOCKED per step 0) the human whether to proceed, coordinate with the
+   other PR's author, or adjust scope — a real STOP, not a printed warning an
+   agent can ignore and continue past. Disclosure distinguishes the failure
+   reason rather than one combined message: `gh` not found on PATH →
+   "PR-scope collision check unavailable — `gh` CLI not installed"; `gh`
+   found but `gh auth status` fails → "PR-scope collision check unavailable
+   — `gh` not authenticated (`gh auth login`)." Either way, fall through to
+   step 5 without blocking.
+5. On success, write `.claude/hooks/state/preflight-ok` — `{"branch":
+   "<task-branch>", "timestamp": "<ISO8601>"}` — the marker the new
+   PreToolUse hook (file 5, below) checks before allowing any file mutation.
+   This is the enforcement seam: without this write, nothing past this point
+   can proceed, regardless of whether Execute's prose steps above were
+   actually followed correctly.
+6. Proceed to implementation as `execute.md` already defines.
 
 **2. `hooks/session-start.js`** — extend `modeInstructions.execute`'s
 condensed string with a clause naming the pre-flight requirement (same
@@ -159,6 +194,47 @@ concrete file/directory paths this card touches. This is the one schema
 change the collision check actually needs (the existing fields — Target,
 Dependencies — are prose, not structured paths, and can't be diffed against
 PR file lists). Small, targeted addition, not a schema overhaul.
+
+**On `Scope` staleness** (raised by the outside-voice pass, resolved by the
+human): `Scope` is not the same failure mode as Approach C's rejected
+task-ownership registry. That registry was rejected for being a *standing*,
+long-lived, cross-project artifact nobody's job it is to keep current.
+`Scope` is filled in once, at the same moment `Target`/`Dependencies` are
+filled in, scoped to a single Build Card's lifetime — it goes stale at
+exactly the rate a Build Card's own `Target` field would, which this project
+already accepts as a normal cost of scoping work, not a new risk. Stated
+here explicitly because the critique is reasonable on its face and deserves
+an on-the-record answer, not silence.
+
+**4. New `scripts/pre-flight-sync.js`** — a deterministic script, not prose,
+performing steps 0-5 above (dirty-tree check, no-checkout base fetch,
+task-branch create-or-skip, self-overlap-excluded PR-scope diff, marker
+write). `execute.md`'s pre-flight block becomes "run
+`scripts/pre-flight-sync.js` as your literal first action; relay exactly
+what it prints" instead of five separate prose-interpreted git/gh
+invocations. This narrows what Execute has to get right from "manually
+execute this git recipe correctly" to "run this one script and report its
+output" — meaningfully more deterministic, addressing the outside-voice
+finding that prose alone doesn't guarantee the gate runs. Exit codes: 0
+(clear to proceed, marker written), 1 + STOP message (interactive
+blocking condition), 2 + BLOCKED message (headless/spawned blocking
+condition per step 0).
+
+**5. New `hooks/pre-tool-use.js` + a `PreToolUse` entry in `hooks/hooks.json`**
+(matcher: `Write|Edit`) — the actual enforcement seam this whole revision
+exists for. When the persisted mode is `execute`, the hook checks
+`.claude/hooks/state/preflight-ok`: must exist, its `branch` must match
+`git rev-parse --abbrev-ref HEAD`, and its `timestamp` must be from the
+current session (not a stale marker surviving from days earlier on a branch
+that's since gone stale again). Missing, mismatched, or stale → **block the
+tool call**, with a message telling Execute to run
+`scripts/pre-flight-sync.js` first. This is what actually makes "stops
+Execute before any mutation, every time" true — not a claim resting on
+Execute reliably remembering to follow prose, a hook enforces it
+structurally. This is a genuine new enforcement mechanism for this plugin
+(its only other hooks handle mode-state and CLAUDE.md seeding, never tool
+gating) — flagged explicitly as real scope, chosen deliberately over the
+prose-only alternative during this review, not a quiet expansion.
 
 Bump `plugin.json` (minor version — new user-facing behavior, not a bugfix).
 
@@ -177,6 +253,26 @@ Bump `plugin.json` (minor version — new user-facing behavior, not a bugfix).
   project with a non-default integration branch) — deferred; would need its
   own new field on `build-cards/SKILL.md` alongside `Scope`, and no current
   project needs it yet. Default-branch-only for this card.
+- **Additional gaps found by the outside-voice (Codex) review, deferred to
+  the Build Card's implementation-time judgment rather than blocking this
+  design — none change the approach, each needs a concrete answer before
+  `scripts/pre-flight-sync.js` is written:**
+  - Whether `gh pr list`'s results should be filtered to PRs targeting the
+    same base branch, or all open PRs regardless of base.
+  - Whether draft PRs count toward the collision check (parallel work often
+    lives in drafts — likely yes, needs an explicit `--json` field check).
+  - Fallback behavior when local `<base>` doesn't exist at all (fresh clone,
+    detached HEAD, local-only testing) — the script needs a defined error
+    state here, not silent failure.
+  - Task-branch idempotency: what `scripts/pre-flight-sync.js` does when the
+    task branch already exists locally, exists remotely but not locally, or
+    exists but points at an older base than the one just fetched.
+  - Whether a clean `git status --porcelain` but unrelated *unpushed local
+    commits* on the current branch should also trigger the dirty-tree STOP —
+    porcelain-clean doesn't mean collision-free.
+  - Untracked/ignored files, submodules, and nested repos are not addressed
+    by plain `git status --porcelain` — needs a decision on whether these
+    are in scope for the dirty-tree check or explicitly out of scope.
 
 ## Success Criteria
 
@@ -197,12 +293,22 @@ Bump `plugin.json` (minor version — new user-facing behavior, not a bugfix).
 
 ## Dependencies
 
-- `gh` CLI presence — hard dependency for the collision check (soft-degrades
-  to disclosure-only if unavailable, per step 4, but must be documented as an
-  expected install in `TEAM_SETUP.md`, not left implicit).
+- `gh` CLI — functionally a *soft* dependency (the collision check alone
+  degrades to disclosure-only per step 4 if `gh` is missing/unauthenticated;
+  the sync gate and hook enforcement work regardless). Documented as an
+  *expected* install in `TEAM_SETUP.md` anyway — a team that skips installing
+  it gets a plugin that silently runs without collision detection, which
+  defeats half the point of this card, even though nothing breaks. "Hard
+  dependency" language from an earlier draft was imprecise and is corrected
+  here — this was flagged by the outside-voice review as an internal
+  contradiction.
 - New `Scope` field added to `build-cards/SKILL.md` as part of this same
   Build Card — the collision check cannot run without it; this is not an
   existing field being reused.
+- New `scripts/pre-flight-sync.js` and `hooks/pre-tool-use.js` — the
+  enforcement mechanism chosen over prose-only during this review; neither
+  exists today and both are required for the "every time" guarantee in
+  Success Criteria to actually hold.
 
 ## The Assignment
 
@@ -211,6 +317,106 @@ Take this design doc straight into `/plan-eng-review` to lock the exact
 `scope` field shape — then package the result into a real Build Card and run
 it through gstack-pilot's own Execute (dogfooding the fix using the
 unfixed plugin one more time, then the fixed one going forward).
+
+## Data Flow Diagram
+
+```
+/gstack-pilot:execute invoked (fresh or resumed)
+        │
+        ▼
+Execute's first action: run scripts/pre-flight-sync.js
+        │
+        ▼
+  ┌─────────────────────────┐
+  │ 0. session-kind check    │──spawned/headless──┐
+  └─────────────────────────┘                     │
+        │ interactive                              │
+        ▼                                           │
+  ┌─────────────────────────┐                      │
+  │ 1. git status --porcelain│                      │
+  └─────────────────────────┘                      │
+        │clean          │dirty                     │
+        │               ▼                           ▼
+        │         STOP: name files,          BLOCKED: state
+        │         ask human                  blocker, halt
+        │         (no marker written)        (no marker written)
+        ▼
+  ┌─────────────────────────────────────┐
+  │ 2. git fetch origin <base>:<base>    │
+  │    (no checkout)                     │
+  └─────────────────────────────────────┘
+        │ok                  │diverged/fails
+        ▼                    ▼
+        │              STOP/BLOCKED (as above)
+        ▼
+  ┌─────────────────────────────────────┐
+  │ 3. task branch: create or skip       │
+  │    if resumed session already has one│
+  └─────────────────────────────────────┘
+        ▼
+  ┌─────────────────────────────────────┐
+  │ 4. gh pr list (self-overlap excluded)│
+  │    diff vs Build Card Scope field    │
+  └─────────────────────────────────────┘
+        │no overlap        │overlap           │gh missing/unauthed
+        │                  ▼                  ▼
+        │            STOP/BLOCKED       disclose plainly,
+        │                                continue (soft-degrade)
+        ▼
+  ┌─────────────────────────────────────┐
+  │ 5. write .claude/hooks/state/        │
+  │    preflight-ok {branch, timestamp}  │
+  └─────────────────────────────────────┘
+        │
+        ▼
+  Execute proceeds to implementation ──── first Write/Edit tool call
+                                                  │
+                                                  ▼
+                                    ┌───────────────────────────────┐
+                                    │ hooks/pre-tool-use.js          │
+                                    │ (PreToolUse, matcher Write|Edit)│
+                                    │ mode == execute?                │
+                                    │   marker exists, branch matches,│
+                                    │   timestamp fresh?              │
+                                    └───────────────────────────────┘
+                                          │yes            │no
+                                          ▼                ▼
+                                    tool call allowed   tool call BLOCKED:
+                                                          "run pre-flight-
+                                                          sync.js first"
+```
+
+## Failure Modes
+
+| Codepath | Realistic production failure | Tested? | Error handling? | User-visible or silent? |
+|---|---|---|---|---|
+| Dirty-tree check | Untracked build artifacts (e.g. `node_modules/`, ignored files) make the tree read "clean" when unrelated work is actually present | Deferred — Open Questions | Not addressed by plain `git status --porcelain` | **Silent** — flagged as a real gap, not fixed in this design |
+| Base fetch (`fetch origin <base>:<base>`) | Local `<base>` doesn't exist (fresh clone, detached HEAD) | Deferred — Open Questions | No defined fallback yet | Would likely surface as a raw git error, not a clean message — **gap** |
+| Task-branch creation | Branch exists locally with a different (older) base than just fetched | Deferred — Open Questions | Idempotency not defined | Risk of confusing state if not handled — **gap** |
+| PR-scope collision check | `gh pr list` hits the 200-PR `--limit` on a busy repo | Live-dogfood verification (Test Plan) | Explicit disclosure required by this design | **Visible** — disclosed, not silent |
+| PR-scope collision check | `gh` present but token lacks repo read scope (distinct from "not authenticated") | Not explicitly covered | Falls into the "not authenticated" bucket, imprecise but not silent | Visible, if slightly mislabeled — acceptable |
+| Hook enforcement (`pre-tool-use.js`) | Marker file corrupted or partially written (process killed mid-write) | Not addressed | JSON parse failure should fail closed (treat as missing marker → block), not fail open | **Must fail closed** — flagged as a hard requirement for the Build Card, not optional |
+| Hook enforcement (`pre-tool-use.js`) | Marker from a previous branch survives after a manual `git checkout` outside Execute's control | Covered by branch-match check | Branch mismatch → treated as missing marker → blocked | **Visible**, correctly handled by design |
+
+**Critical gap:** the marker-corruption failure mode has no test and no defined behavior in this design — it MUST fail closed (any unparseable/unreadable marker blocks tool use, same as a missing one) or the entire enforcement mechanism this revision exists to build has a silent bypass. This is now a Build Card requirement, not an implementation detail to improvise.
+
+## Worktree Parallelization Strategy
+
+| Step | Modules touched | Depends on |
+|---|---|---|
+| Sync-gate + collision-check logic | `scripts/` (new `pre-flight-sync.js`) | — |
+| Hook enforcement | `hooks/` (new `pre-tool-use.js`, edit `hooks.json`) | `scripts/pre-flight-sync.js` (references the marker it writes) |
+| `execute.md` prose update | `commands/` | `scripts/pre-flight-sync.js` (references it by path) |
+| `session-start.js` condensed-string update | `hooks/` (existing file) | — (independent text addition) |
+| `build-cards/SKILL.md` Scope field | `skills/` | — (independent schema addition) |
+| `TEAM_SETUP.md` gh prerequisite | root | — (independent doc addition) |
+
+**Lane A:** `scripts/pre-flight-sync.js` → `hooks/pre-tool-use.js` + `hooks.json` → `commands/execute.md` (sequential, each depends on the prior existing).
+**Lane B:** `session-start.js` (independent).
+**Lane C:** `skills/build-cards/SKILL.md` (independent).
+**Lane D:** `TEAM_SETUP.md` (independent).
+
+**Execution order:** Launch B, C, D in parallel worktrees alongside Lane A (which is itself sequential and the critical path). Merge all four. No conflict flags — no two lanes touch the same module directory.
 
 ## Reviewer Concerns
 
@@ -232,6 +438,88 @@ approach; both are normal `/plan-eng-review`-level tightening:
   branch-creation on a resumed session that already has one, or always
   creates. `session-start.js`'s clause implies skip-if-exists but step 3's
   own wording doesn't say so explicitly.
+
+## NOT in scope
+
+- **Task-ownership registry, git worktrees, GitHub Issues as coordination
+  backbone** (Approach C) — rejected in the original design pass; a
+  hand-maintained standing artifact is a worse failure mode than none for
+  this team's current scale.
+- **Base-branch override field on Build Cards** — no current project needs a
+  non-default integration branch; deferred, would need its own schema
+  addition alongside `Scope`.
+- **Semantic collision detection** (shared APIs, migrations, generated
+  clients, database contracts) beyond exact-path-or-prefix matching — the
+  outside-voice review correctly noted this misses real collisions, but
+  building it is Approach-C-scale work; exact-path-or-prefix is the
+  deliberate narrowest-wedge tradeoff, not an oversight.
+- **Local-branch collision detection** (comparing against branches a
+  teammate hasn't pushed yet) — deferred from the original design pass;
+  unpushed work isn't visible to anyone regardless of what this plugin does.
+- **The 6 additional Codex-found gaps listed under Open Questions** (PR
+  base-branch filtering, draft-PR inclusion, no-local-base fallback,
+  task-branch idempotency, unpushed-commit detection, untracked/submodule
+  handling) — real, each needs a concrete answer, but they're
+  implementation-time script decisions for `scripts/pre-flight-sync.js`, not
+  architecture-level choices this design doc needs to lock.
+
+## What already exists
+
+- `execute.md`'s file-reference-chaining pattern (the wrap-up chain already
+  points into gstack's `review`/`qa`/`ship` skills) — the new pre-flight
+  block reuses this same "run X, relay what it prints" prose convention for
+  `scripts/pre-flight-sync.js`, not a new mechanism.
+- `session-start.js`'s `modeInstructions` object already has the exact
+  string (`modeInstructions.execute`) this design extends — no new
+  injection mechanism needed.
+- `build-cards/SKILL.md`'s field table already has the exact place for one
+  new field — the skill's own "What this deliberately doesn't do" section
+  (no enforced schema beyond the documented fields) means adding `Scope` is
+  additive, not a break from convention.
+- `hooks/hooks.json` already has the `SessionStart`/`SessionEnd` hook
+  registration pattern (`type: command`, `node`, `${CLAUDE_PLUGIN_ROOT}`,
+  `timeout`) that the new `PreToolUse` entry follows exactly — no new
+  registration convention invented.
+- This project's existing headless/spawned → BLOCKED fallback convention
+  (documented in every gstack skill's AskUserQuestion Format section) — the
+  session-kind gate reuses this exact existing pattern rather than inventing
+  new headless-handling semantics.
+
+## Implementation Tasks
+
+Synthesized from this review's findings. Each task derives from a specific
+finding above. Run with Claude Code or Codex; checkbox as you ship.
+
+- [ ] **T1 (P1, human: ~2h / CC: ~20min)** — scripts — Write `scripts/pre-flight-sync.js`
+  - Surfaced by: Recommended Approach, file 4; Outside-voice enforcement tension
+  - Files: `scripts/pre-flight-sync.js` (new)
+  - Verify: run against a dirty tree, a stale base, a diverged base, an overlapping PR, a clean case — confirm exit codes and messages match the design's step 0-5 spec, including the self-overlap exclusion and marker-corruption fail-closed behavior
+- [ ] **T2 (P1, human: ~1.5h / CC: ~15min)** — hooks — Write `hooks/pre-tool-use.js`, register in `hooks/hooks.json`
+  - Surfaced by: Recommended Approach, file 5; Failure Modes critical gap (marker corruption)
+  - Files: `hooks/pre-tool-use.js` (new), `hooks/hooks.json` (edit)
+  - Verify: Write/Edit blocked with no marker, blocked with wrong-branch marker, blocked with corrupted/unparseable marker (fail-closed), allowed with a valid fresh marker
+- [ ] **T3 (P1, human: ~1h / CC: ~15min)** — commands — Add pre-flight block to `commands/execute.md`, reword wrap-up-chain step 2
+  - Surfaced by: Recommended Approach, file 1; Reviewer Concern on the branch-creation-timing reconciliation
+  - Files: `commands/execute.md`
+  - Verify: `node scripts/check-init-sync.js`-equivalent review that the file's prose accurately describes calling `scripts/pre-flight-sync.js`, and that step 2 of the wrap-up chain no longer implies creating a second branch
+- [ ] **T4 (P2, human: ~20min / CC: ~5min)** — hooks — Extend `modeInstructions.execute` in `session-start.js`
+  - Surfaced by: Adversarial review iteration 1 (persisted-mode gap)
+  - Files: `hooks/session-start.js`
+  - Verify: resume a session already in Execute mode, read the injected context, confirm the pre-flight requirement clause is present
+- [ ] **T5 (P1, human: ~20min / CC: ~5min)** — skills — Add `Scope` field to `build-cards/SKILL.md`
+  - Surfaced by: Adversarial review iteration 1 (nonexistent scope field)
+  - Files: `skills/build-cards/SKILL.md`
+  - Verify: a real Build Card written with a `Scope` field, confirm T1's script actually reads and diffs against it
+- [ ] **T6 (P2, human: ~15min / CC: ~5min)** — docs — Add `gh` CLI install step to `TEAM_SETUP.md`
+  - Surfaced by: Design doc Open Questions; outside-voice file-count contradiction
+  - Files: `TEAM_SETUP.md`
+  - Verify: a fresh read-through confirms the step is present and ordered before first `/gstack-pilot:execute` use
+- [ ] **T7 (P1, human: ~5min / CC: ~2min)** — release — Bump `plugin.json` minor version
+  - Surfaced by: Recommended Approach versioning discipline
+  - Files: `.claude-plugin/plugin.json`
+  - Verify: version bumped, no `marketplace.json` duplicate touched (per this project's own standing drift-prevention rule)
+
+_No new tasks from Test Review or Performance Review beyond what's captured above — Test Review's gaps are folded into T1/T2's verify steps as live-dogfood checks (no automated test framework exists in this repo); Performance Review found no issues._
 
 ## What I noticed about how you think
 
