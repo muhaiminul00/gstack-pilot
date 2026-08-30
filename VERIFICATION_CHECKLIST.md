@@ -1,6 +1,6 @@
 # Verification Checklist
 
-Six concrete, checkable behaviors — how to tell `gstack-pilot` is actually
+Seven concrete, checkable behaviors — how to tell `gstack-pilot` is actually
 working versus quietly broken after setup. Each one has an expected result;
 anything different is a real finding, not something to route around. Run
 this after following [`TEAM_SETUP.md`](TEAM_SETUP.md).
@@ -55,6 +55,17 @@ If gstack itself isn't installed or discoverable when a chain point is
 reached, both modes should say so plainly and fall back to planning/wrap-up
 without it — never silently skip the chain and behave as if it happened
 anyway.
+
+## 7. gh setup nudges once, never repeats, never blocks
+
+On a fresh project where `gh` is missing or unauthenticated, your first
+real session should surface a one-time `GH SETUP:` nudge naming exactly
+which of the two it is and pointing at `TEAM_SETUP.md` step 3. A second
+session in the same project should NOT repeat it — check
+`.claude/hooks/state/.gh-setup-checked-gstack-pilot` exists after the
+first. Either way, nothing should ever block: Execute's pre-flight
+collision check still runs (degraded), and every other behavior on this
+checklist should work exactly the same whether `gh` is set up or not.
 
 ---
 

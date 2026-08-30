@@ -72,6 +72,7 @@ Three modes, persisted per project in `.claude/hooks/state/mode.json`:
 | Execute's wrap-up | Your project's own git workflow, whatever that is | **PR-first, no exemption for trivial changes**: state-doc update → feature branch → PR → gstack's `review` → `qa` → `ship` → merge, every time |
 | SessionEnd hook | None | A fast, stderr-only reminder if a session ends mid-wrap-up. (`SessionEnd` has no way to feed context back to Claude — this hook is a plain terminal message for the human, not a disguised instruction to the model.) |
 | SessionStart briefing | Mode-behavior text only | Same, plus: in Commander mode, if your project declares a `State Doc:` path in `.claude/CLAUDE.md`, an excerpt of it is read and injected automatically — Commander starts every session already briefed |
+| gh setup visibility | N/A | A one-time, loud nudge (any mode) the first time `gh` is found missing or unauthenticated, pointing at `TEAM_SETUP.md` step 3 — never blocks, never repeats once seen. The existing per-task `DISCLOSED:` line in `pre-flight-sync.js` stays untouched alongside it |
 | CLAUDE.md seed block | Mode explanation only | Mode explanation + a **Mode–gstack Bridge** section describing the chain sequence — written so it doesn't duplicate gstack's own separate routing-table injection if your project has both |
 
 If none of the right-hand column matters to you, you don't need this
@@ -270,7 +271,22 @@ compares this field and does nothing for already-installed copies if
 it's unchanged — **every user-facing change needs a version bump
 alongside it**, not after the fact.
 
-Current release: **v1.1.0**. Minor bump over v1.0.1: Execute now runs a
+Current release: **v1.2.0**. Minor bump over v1.1.0: a one-time, loud
+nudge (in `hooks/session-start.js` and `commands/init.md`, sharing one
+sentinel `.claude/hooks/state/.gh-setup-checked-gstack-pilot`) fires the
+first time `gh` is found missing or unauthenticated, pointing at
+`TEAM_SETUP.md` step 3 — closing the "silent-forever" gap the
+v1.1.0 design doc explicitly flagged and accepted: a team that never
+finishes `gh` setup previously got nothing but a per-task line that's easy
+to miss. That per-task `DISCLOSED:` line in `pre-flight-sync.js` is
+untouched — the nudge is a loud first impression, not a replacement for
+the ongoing, real-time-accurate signal. Never blocks, in any session kind.
+`TODOS.md` gained a fourth deferred item (re-nudging if `gh` auth
+regresses *after* the one-time check already passed clean). See
+`docs/designs/gh-setup-loud-nudge.md` and
+`docs/build-cards/BC-2026-08-31-gh-setup-loud-nudge.md`.
+
+Minor bump in v1.1.0 over v1.0.1: Execute now runs a
 pre-flight sync gate (`scripts/pre-flight-sync.js`) before any branch or
 file mutation — dirty-tree check, stale-base fast-forward, and a live
 open-PR-scope collision check against a new `Scope` field on Build
