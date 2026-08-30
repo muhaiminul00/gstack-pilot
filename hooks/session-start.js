@@ -62,10 +62,13 @@ const modeInstructions = {
   execute:
     'MODE: /gstack-pilot:execute (persisted). Effort: MEDIUM. Full build authority within the current ' +
     'approved scope of work - self-orchestrate, live-verify assumptions against real systems before building on ' +
-    'them, test what you build, report precisely. Wrap-up is PR-first, no trivial-housekeeping exemption: state-' +
-    'doc updates land, then a feature branch, a PR, and gstack\'s review -> qa -> ship chain, before merging - ' +
-    "see this command's own file for the exact chain. Follow this project's own Executor protocol if its " +
-    'CLAUDE.md names one.',
+    'them, test what you build, report precisely. Before any branch/file mutation, this task\'s first action is ' +
+    '`node scripts/pre-flight-sync.js` (dirty-tree/stale-base/PR-scope-collision gate) - this applies even on a ' +
+    'resumed session, not just a freshly-invoked one, and a PreToolUse hook independently blocks Write/Edit ' +
+    'without a valid marker from it. Wrap-up is PR-first, no trivial-housekeeping exemption: state-doc updates ' +
+    'land, then a commit on the task branch the pre-flight step already created, a PR, and gstack\'s ' +
+    "review -> qa -> ship chain, before merging - see this command's own file for the exact chain. Follow this " +
+    "project's own Executor protocol if its CLAUDE.md names one.",
   advisor:
     'MODE: /gstack-pilot:advisor (persisted/default). Effort: LOW. Advisory Q&A only - no build actions, no ' +
     'plans committed to any file, no execution, no gstack chaining (leaf state, same as Commander/Execute\'s own ' +

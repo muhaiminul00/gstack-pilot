@@ -37,6 +37,14 @@ Every card should have, at minimum:
   accomplish, concretely enough that "done" is checkable.
 - **Dependencies** - anything this card assumes already exists or is
   already true.
+- **Scope** - a list of concrete file/directory paths this card touches.
+  Filled in at the same time as `Target`/`Dependencies`, scoped to this
+  card's lifetime - it goes stale at exactly the rate `Target` would, which
+  is a normal, accepted cost of scoping work, not a new risk. Used by
+  Execute's pre-flight sync gate (`scripts/pre-flight-sync.js`) to check
+  open PRs for real file-path overlap before this task's branch starts -
+  without a `Scope` field there's nothing structured to diff PR file lists
+  against.
 - **Acceptance Criteria** - the specific, checkable conditions that make
   this card done. Not "works well" - the exact behavior/output expected.
 - **Verification** - how Execute proves the criteria are met (a test to

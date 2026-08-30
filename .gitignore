@@ -1,3 +1,7 @@
 node_modules/
 .DS_Store
 Thumbs.db
+
+# Per-project, machine/session-local plugin state (mode.json, the
+# pre-flight-sync preflight-ok marker) - never meant to be committed.
+.claude/hooks/state/

@@ -48,18 +48,27 @@ Three modes, persisted per project in `.claude/hooks/state/mode.json`:
   packages the result into a Build Card (your project's own format if
   it has one, or this plugin's generic `build-cards` fallback skill)
   and hands off to Execute.
-- **Execute** — full build authority within an approved scope. Every
-  wrap-up — state-doc update, decision-log entry, and the actual
-  change — goes out **PR-first**: feature branch → PR → gstack's
-  `review` → `qa` → `ship` → merge. No exemption for small or doc-only
-  changes; that's a deliberate choice (see the table below), not an
-  oversight.
+- **Execute** — full build authority within an approved scope. Before
+  any branch or file mutation, a pre-flight sync gate
+  (`scripts/pre-flight-sync.js`) checks for a dirty working tree, fast-
+  forwards a stale base, and — if `gh` is installed and authenticated —
+  checks the task's declared `Scope` against currently open PRs for a
+  real collision, stopping (or reporting BLOCKED, headless) rather than
+  proceeding past any of these silently. A `PreToolUse` hook enforces
+  this structurally: no `Write`/`Edit` tool call goes through in Execute
+  mode without a valid, fresh marker from that script, on the current
+  branch. Every wrap-up — state-doc update, decision-log entry, and the
+  actual change — then goes out **PR-first**: commit on the task branch
+  the pre-flight step already created → PR → gstack's `review` → `qa` →
+  `ship` → merge. No exemption for small or doc-only changes; that's a
+  deliberate choice (see the table below), not an oversight.
 
 ## What's different from role-modes
 
 | | `role-modes` | `gstack-pilot` |
 |---|---|---|
 | Commander's planning phase | Plans directly, or per your project's own protocol | Chains into gstack's `office-hours` (new-idea framing) → `plan-eng-review` → optionally `autoplan`, **before** scoping a Build Card |
+| Execute's task start | Whatever's checked out locally is assumed safe | **Pre-flight sync gate, hook-enforced**: dirty-tree check, stale-base fast-forward, and a live open-PR-scope collision check block the first `Write`/`Edit` until they pass — not just prose telling Execute to check |
 | Execute's wrap-up | Your project's own git workflow, whatever that is | **PR-first, no exemption for trivial changes**: state-doc update → feature branch → PR → gstack's `review` → `qa` → `ship` → merge, every time |
 | SessionEnd hook | None | A fast, stderr-only reminder if a session ends mid-wrap-up. (`SessionEnd` has no way to feed context back to Claude — this hook is a plain terminal message for the human, not a disguised instruction to the model.) |
 | SessionStart briefing | Mode-behavior text only | Same, plus: in Commander mode, if your project declares a `State Doc:` path in `.claude/CLAUDE.md`, an excerpt of it is read and injected automatically — Commander starts every session already briefed |
@@ -174,7 +183,10 @@ Claude:    [chains into plan-eng-review/SKILL.md - runs gstack's real
            approve to hand off to Execute?
 
 You:       Approved, go.
-Claude:    [writes mode.json to "execute", begins building]
+Claude:    [writes mode.json to "execute"]
+           [runs scripts/pre-flight-sync.js: working tree clean, base
+           branch fast-forwarded, no open-PR overlap with this task's
+           Scope - preflight-ok marker written]
            ...
            [implementation done]
            Wrapping up: state doc updated, branch feature/webhook-retry-
@@ -235,6 +247,19 @@ exactly like any other stop condition — never bypassed to keep an
 auto-handoff moving. A credential gate, an unresolved conflict, or a
 "decision needed" flag always ends the turn and waits for you.
 
+Execute has one more, structural rather than prose: the pre-flight sync
+gate. A dirty working tree, a base branch that can't fast-forward
+cleanly (diverged, never forced), or an open PR overlapping the task's
+`Scope` all stop Execute (interactive) or report BLOCKED (headless/
+spawned — no human to answer) before any file is touched. A `gh` that's
+missing or unauthenticated degrades the collision check to a disclosed
+skip rather than a hard block — the sync gate itself still runs. A
+`PreToolUse` hook backs this up independently: any `Write`/`Edit` call
+in Execute mode is denied without a valid, current-branch, fresh
+`.claude/hooks/state/preflight-ok` marker — a corrupted or unreadable
+marker is treated the same as a missing one (fails closed), never
+treated as permission to proceed.
+
 ## Releases
 
 `plugin.json` is the sole version source — no duplicate `version`
@@ -245,7 +270,22 @@ compares this field and does nothing for already-installed copies if
 it's unchanged — **every user-facing change needs a version bump
 alongside it**, not after the fact.
 
-Current release: **v1.0.1**. Patch fix over v1.0.0: first real-world
+Current release: **v1.1.0**. Minor bump over v1.0.1: Execute now runs a
+pre-flight sync gate (`scripts/pre-flight-sync.js`) before any branch or
+file mutation — dirty-tree check, stale-base fast-forward, and a live
+open-PR-scope collision check against a new `Scope` field on Build
+Cards — enforced structurally by a new `PreToolUse` hook
+(`hooks/pre-tool-use.js`), not left to prose alone. Landed via
+`/office-hours` → `/plan-eng-review` (3 adversarial review rounds + 1
+Codex outside-voice pass; the outside-voice pass is why this became a
+real hook instead of stronger wording — prose telling Execute to check
+doesn't guarantee it runs every time). `TEAM_SETUP.md` now names `gh`
+CLI install as a prerequisite step. See
+`docs/designs/sync-gate-and-collision-check.md` and
+`docs/build-cards/BC-2026-08-31-sync-gate-and-collision-check.md` for
+the full design/build record.
+
+Patch fix in v1.0.1 over v1.0.0: first real-world
 use (on `zm-brain`, see Status below) found the `office-hours` vs
 `plan-eng-review` branch-selection criterion under-specified —
 tentative-sounding phrasing ("propose reviving X") could misroute
