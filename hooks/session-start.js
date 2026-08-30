@@ -16,6 +16,8 @@
 const fs = require('fs');
 const path = require('path');
 
+const { execFileSync } = require('child_process');
+
 const projectDir = process.env.CLAUDE_PROJECT_DIR || process.cwd();
 const stateDir = path.join(projectDir, '.claude', 'hooks', 'state');
 const stateFile = path.join(stateDir, 'mode.json');
@@ -91,6 +93,11 @@ if (mode === 'commander') {
   }
 }
 
+const ghNudge = checkGhSetupOnce(stateDir);
+if (ghNudge) {
+  contextParts.push('', ghNudge);
+}
+
 const context = contextParts.join('\n');
 
 const output = {
@@ -147,6 +154,66 @@ function buildCommanderBriefing(dir, claudeMdFilePath) {
     `Commander pre-session briefing (from ${declaredPath}, this project's declared State Doc):`,
     excerpt
   ].join('\n');
+}
+
+// One-time, loud gh install+auth nudge (BC-2026-08-31-gh-setup-loud-nudge).
+// Reuses pre-flight-sync.js's own gh-installed / gh-authenticated check
+// logic and message wording - not new copy, just a louder, once-only
+// surface for it. Gated by a namespaced sentinel (same pattern as the
+// CLAUDE.md-seed sentinel above): checked once ever, written regardless of
+// outcome (including the "already fine" case) so a later `gh auth logout`
+// doesn't retroactively need a nudge that would just duplicate the
+// per-task DISCLOSED line in pre-flight-sync.js - that line is untouched
+// and stays the real-time-accurate signal (see TODOS.md's "Re-nudge on gh
+// auth regression" entry for closing that specific gap for real).
+// commands/init.md carries an identical check sharing this same sentinel -
+// same hook/command duplication reason as seedClaudeMd() above.
+// Never blocks: this function only ever returns nudge text or null, never
+// throws past its own try/catch, in any session kind.
+function checkGhSetupOnce(dir) {
+  const sentinelFile = path.join(dir, '.gh-setup-checked-gstack-pilot');
+  if (fs.existsSync(sentinelFile)) return null;
+
+  let nudge = null;
+  try {
+    let ghInstalled = true;
+    try {
+      execFileSync('gh', ['--version'], { stdio: 'ignore' });
+    } catch (err) {
+      ghInstalled = false;
+    }
+
+    if (!ghInstalled) {
+      nudge =
+        'GH SETUP: gh CLI not installed - Execute\'s pre-flight PR-scope collision check ' +
+        'runs without it (soft dependency, nothing blocks), but you lose real collision ' +
+        'detection until it\'s set up. See TEAM_SETUP.md step 3. (One-time notice - won\'t ' +
+        'repeat; the per-task DISCLOSED line in pre-flight-sync.js still flags this on every ' +
+        'Execute task in the meantime.)';
+    } else {
+      let ghAuthed = true;
+      try {
+        execFileSync('gh', ['auth', 'status'], { stdio: 'ignore' });
+      } catch (err) {
+        ghAuthed = false;
+      }
+      if (!ghAuthed) {
+        nudge =
+          'GH SETUP: gh CLI installed but not authenticated (`gh auth login`) - Execute\'s ' +
+          'pre-flight PR-scope collision check runs without it (soft dependency, nothing ' +
+          'blocks), but you lose real collision detection until it\'s authenticated. See ' +
+          'TEAM_SETUP.md step 3. (One-time notice - won\'t repeat; the per-task DISCLOSED ' +
+          'line in pre-flight-sync.js still flags this on every Execute task in the meantime.)';
+      }
+    }
+
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(sentinelFile, '', 'utf8');
+  } catch (err) {
+    // Best-effort, same as seedClaudeMd() - never let this block the session.
+  }
+
+  return nudge;
 }
 
 function seedClaudeMd(dir) {

@@ -89,3 +89,36 @@ Approach, step 2, explicitly deferred this with the same reasoning.
 
 **Depends on / blocked by:** The base sync-gate landing first, so there's a
 `Scope`-field precedent to follow for how a new Build Card field gets added.
+
+---
+
+## Re-nudge on gh auth regression
+
+**What:** Extend the one-time gh-setup nudge (BC-2026-08-31-gh-setup-loud-nudge)
+so it fires again if `gh` auth breaks *after* the sentinel already got
+written clean - not just on the very first check ever.
+
+**Why:** The sentinel is written once the check has run, regardless of
+outcome - including "already fine." A teammate who sets up `gh` cleanly,
+gets no nudge, then loses auth three months later (token expired, revoked,
+`gh auth logout` run by accident) gets nothing but the existing per-task
+`DISCLOSED:` line in `pre-flight-sync.js` - real-time-accurate, but quiet
+and easy to miss in exactly the way the loud nudge was built to fix in the
+first place.
+
+**Pros:** Closes the loudness gap for the "regressed after working" case,
+not just the "never set up" case the shipped nudge covers.
+
+**Cons:** Needs its own staleness/TTL logic (or an explicit re-check trigger)
+that the current design deliberately doesn't have - "sentinel written once,
+ever" is simple and was judged good enough for a first ship. Building this
+before knowing how often gh auth actually regresses in practice on a real
+team would be solving an unmeasured problem, same reasoning the other two
+deferred items above already apply.
+
+**Context:** Raised during `/plan-eng-review` for BC-2026-08-31-gh-setup-loud-nudge
+(`docs/designs/gh-setup-loud-nudge.md`) and explicitly deferred there rather
+than built - see that design doc's NOT-in-scope section and Decision 4.
+
+**Depends on / blocked by:** BC-2026-08-31-gh-setup-loud-nudge shipping
+first, so there's a real sentinel mechanism to extend.

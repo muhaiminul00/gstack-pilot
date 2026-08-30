@@ -94,5 +94,41 @@ starter block's wording in one place, change it in the other too, then run
 against a scratch project and byte-diffs the output against this file,
 instead of relying on this comment alone to catch drift.
 
-Report exactly what was created (mode.json, the CLAUDE.md block, or both), and
-what already existed and was left alone.
+**3. One-time gh setup nudge.** Check `.claude/hooks/state/.gh-setup-checked-gstack-pilot`.
+If it already exists, skip this step entirely - `hooks/session-start.js` (or
+a prior run of this command) already did it, and this shares that same
+sentinel on purpose so the two paths never double-nudge each other.
+
+If the sentinel is absent, run `gh --version`. If that fails (not
+installed), report exactly:
+
+> GH SETUP: gh CLI not installed - Execute's pre-flight PR-scope collision
+> check runs without it (soft dependency, nothing blocks), but you lose
+> real collision detection until it's set up. See TEAM_SETUP.md step 3.
+> (One-time notice - won't repeat; the per-task DISCLOSED line in
+> pre-flight-sync.js still flags this on every Execute task in the
+> meantime.)
+
+If `gh --version` succeeds, run `gh auth status`. If that fails (not
+authenticated), report exactly:
+
+> GH SETUP: gh CLI installed but not authenticated (`gh auth login`) -
+> Execute's pre-flight PR-scope collision check runs without it (soft
+> dependency, nothing blocks), but you lose real collision detection until
+> it's authenticated. See TEAM_SETUP.md step 3. (One-time notice - won't
+> repeat; the per-task DISCLOSED line in pre-flight-sync.js still flags
+> this on every Execute task in the meantime.)
+
+If both succeed, report nothing extra - gh is already set up.
+
+Either way, once the check has run, create the sentinel file
+`.claude/hooks/state/.gh-setup-checked-gstack-pilot` (empty file) so neither
+this command nor `hooks/session-start.js` re-checks it again. This mirrors
+`hooks/session-start.js`'s `checkGhSetupOnce()` function exactly - same
+messages, same never-blocks guarantee, same reasoning for why the existing
+per-task `DISCLOSED:` line in `pre-flight-sync.js` is untouched and stays
+the ongoing, real-time-accurate signal. Keep both in sync when editing this
+step's wording.
+
+Report exactly what was created (mode.json, the CLAUDE.md block, the gh-setup
+sentinel/nudge, or some subset), and what already existed and was left alone.
