@@ -267,8 +267,17 @@ function main() {
           prJson = null;
         }
 
+        let prs = null;
         if (prJson) {
-          const prs = JSON.parse(prJson);
+          try {
+            prs = JSON.parse(prJson);
+          } catch (err) {
+            console.log('DISCLOSED: PR-scope collision check unavailable — `gh pr list` returned unparseable output.');
+            prs = null;
+          }
+        }
+
+        if (prs) {
           if (prs.length >= 200) {
             console.log('DISCLOSED: gh pr list returned 200 results (the --limit cap) — there may be more open PRs than checked.');
           }
