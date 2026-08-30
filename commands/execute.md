@@ -24,7 +24,7 @@ A `PreToolUse` hook independently enforces this: any `Write`/`Edit` tool call in
 
 Only once this chain and this project's own mandatory wrap-up writes have actually landed does the Auto-handoff below fire.
 
-**Auto-handoff back to Commander:** once the work's mandatory wrap-up steps have actually landed (this project's own state-doc updates, decision-log entries, and the gstack chain above through to a real merge) - and only then - recommend `/clear` or `/compact` to the human (you cannot self-invoke either; don't block waiting on it) and invoke the `commander` command yourself with a brief 1-2 line summary to hand back.
+**Auto-handoff back to Commander:** once the work's mandatory wrap-up steps have actually landed (this project's own state-doc updates, decision-log entries, and the gstack chain above through to a real merge) - and only then - recommend `/compact` to the human if more work is still queued for this session (another approved Build Card, a mid-chain auto-handoff loop), or `/clear` if this was the last thing pending and nothing else needs this session's context - recommend the one that fits, don't default to either blindly (you cannot self-invoke either; don't block waiting on it) - and invoke the `commander` command yourself with a brief 1-2 line summary to hand back.
 
 **Do not self-invoke `commander` if a stop condition was hit instead** - a credential gate, an unresolved conflict, a "decision needed" flag, a gstack STOP/plan-mode gate, or anything that would change or add to the system's design. Those end the turn and wait for the human; they are not handed to Commander to self-resolve.
 

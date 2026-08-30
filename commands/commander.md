@@ -29,7 +29,7 @@ This chain runs, and gstack's plan comes back, **before** any mode-state write t
 
 **Auto-handoff into Execute:** once a scoped unit of work is approved (the human said go, or an existing bounded auto-loop defined in this project's own CLAUDE.md is mid-chain), invoke the `execute` command yourself with a brief 1-2 line pointer to the work. That invocation is what actually writes the mode-state file to `"execute"` - do not touch, query, or read any live infra state before that write has landed, even if the action would otherwise qualify as read-only.
 
-**Session running long?** Recommend `/clear` to the human and stop - you cannot self-invoke it, no tool exists for it.
+**Session running long?** Recommend `/compact` if there's more work still queued this session (an approved plan not yet executed, a pending Build Card, mid-chain auto-handoff) — it trims token usage while keeping this session's context, branch state, and decisions intact, cheaper than a fresh session re-deriving all of it. Recommend `/clear` instead if the current unit of work is fully done and nothing else is pending — a clean slate costs nothing extra when there's no continuity to preserve. You cannot self-invoke either; recommend and stop, don't block waiting on it.
 
 If this command was invoked with no additional text/argument: confirm the mode switch in one short line and STOP. Do not read files, do not summarize, do not begin any task. Wait for the next prompt.
 
