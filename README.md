@@ -1,31 +1,22 @@
 # gstack-pilot
 
-**Advisor / Commander / Execute mode system for Claude Code, natively
-chained into [gstack](https://github.com/garrytan/gstack).**
-
-If your project runs [`role-modes`](https://github.com/muhaiminul00/role-modes)
-for its three-mode operating system *and* gstack for its skill suite,
-today those two things only connect through whatever your CLAUDE.md
-happens to say — a human (or Commander itself) has to remember to
-invoke gstack's planning skills, and re-check their output by hand
-afterward. `gstack-pilot` closes that gap: the same three modes, but
-Commander's planning phase and Execute's wrap-up actually chain into
-gstack's own skills as part of the mode itself, not as a step someone
-has to remember.
-
-Use `gstack-pilot` if your project also runs gstack. Use plain
-`role-modes` if it doesn't — the two are designed as alternatives for a
-given project, not meant to be co-installed together (see
-[A real design constraint](#a-real-design-constraint)).
+**The team layer for [gstack](https://github.com/garrytan/gstack) — a
+Claude Code plugin that decides which gstack skill to run, prompts it
+correctly, and lets a whole team drive one project through it, not just
+its original author.**
 
 ---
 
 ## Table of contents
 
+- [The problem this solves](#the-problem-this-solves)
+- [Who this is for](#who-this-is-for)
 - [What this actually does](#what-this-actually-does)
-- [What's different from role-modes](#whats-different-from-role-modes)
+- [Example use cases](#example-use-cases)
+- [Pairs well with project-memory](#pairs-well-with-project-memory)
 - [Install](#install)
-- [Usage guide](#usage-guide)
+- [How to use it — day to day](#how-to-use-it--day-to-day)
+- [What's different from role-modes](#whats-different-from-role-modes)
 - [Composition mechanism](#composition-mechanism)
 - [A real design constraint](#a-real-design-constraint)
 - [Gates and stop conditions](#gates-and-stop-conditions)
@@ -35,48 +26,112 @@ given project, not meant to be co-installed together (see
 
 ---
 
+## The problem this solves
+
+gstack is a genuinely powerful skill suite — 55+ skills covering
+planning, review, QA, shipping, and more. But powerful and usable aren't
+the same thing, and gstack has two real costs that show up the moment
+more than one person is on the project:
+
+1. **You have to remember which skill to invoke, and when.** Is this an
+   `/office-hours` conversation or a `/plan-eng-review`? Does this diff
+   need `/review` or `/adversarial-review`? gstack has an answer for
+   almost everything — but only if you already know its name.
+2. **Invoking the right skill isn't enough — it needs the right prompt.**
+   gstack's skills are opinionated and thorough; a thin, under-specified
+   prompt gets a thin, under-specified result back. Getting real value
+   out of `/plan-eng-review` means feeding it the right framing, not
+   just typing the command.
+
+gstack was built assuming a solo founder who already knows its skill
+map by heart. `gstack-pilot` is what makes it work for **a team of
+builders on the same project** instead: three modes (Advisor / Commander
+/ Execute) that decide which gstack skill a given moment calls for,
+construct the prompt that actually gets a good result from it, and chain
+straight from planning into execution without a human having to
+remember any of it — the same experience whether you're the person who
+set gstack up or the teammate who joined last week and has never typed
+a gstack skill name in their life.
+
+## Who this is for
+
+- **A team sharing one gstack-powered project.** gstack itself doesn't
+  care who invokes it, but *knowing what to invoke* is tribal knowledge
+  that lives in one person's head by default. `gstack-pilot` moves that
+  knowledge into the plugin, so it doesn't matter who's driving.
+- **Anyone who wants to talk through a build, not memorize a command
+  reference.** You don't need to know gstack exists. Talk to Commander
+  like you'd talk to a technical co-founder — describe what you want,
+  it figures out which gstack skill gets you there and drives the
+  conversation.
+- **Teams that want planning and execution kept visibly separate.** The
+  three modes aren't cosmetic — Commander only plans (and cannot make a
+  live-infra or git-write change even if it wanted to), Execute only
+  builds against an already-approved scope. If your team has been
+  burned by an agent quietly executing something nobody signed off on,
+  this is the guardrail.
+- **Solo builders too** — everything above still helps one person; it's
+  just not the only person it helps.
+
 ## What this actually does
 
-Three modes, persisted per project in `.claude/hooks/state/mode.json`:
+Three modes, persisted per project in `.claude/hooks/state/mode.json`,
+each one a different **persona you talk to**, not a settings toggle you
+configure once and forget:
 
 - **Advisor** (default) — low-effort Q&A. No build actions, no plans
-  committed to any file, no gstack chaining. A leaf state: only a human
-  enters or leaves it.
-- **Commander** — plans work. Before scoping a unit of work, it chains
-  into gstack's own planning skills for the plan's actual substance
-  (see [Usage guide](#usage-guide) for the exact sequence), then
-  packages the result into a Build Card (your project's own format if
-  it has one, or this plugin's generic `build-cards` fallback skill)
-  and hands off to Execute.
-- **Execute** — full build authority within an approved scope. Before
-  any branch or file mutation, a pre-flight sync gate
-  (`scripts/pre-flight-sync.js`) checks for a dirty working tree, fast-
-  forwards a stale base, and — if `gh` is installed and authenticated —
-  checks the task's declared `Scope` against currently open PRs for a
-  real collision, stopping (or reporting BLOCKED, headless) rather than
-  proceeding past any of these silently. A `PreToolUse` hook enforces
-  this structurally: no `Write`/`Edit` tool call goes through in Execute
-  mode without a valid, fresh marker from that script, on the current
-  branch. Every wrap-up — state-doc update, decision-log entry, and the
-  actual change — then goes out **PR-first**: commit on the task branch
-  the pre-flight step already created → PR → gstack's `review` → `qa` →
-  `ship` → merge. No exemption for small or doc-only changes; that's a
-  deliberate choice (see the table below), not an oversight.
+  committed to any file, no gstack chaining. Talk to it like you'd ask
+  a quick question of a teammate who happens to know the codebase.
+- **Commander** — plans work, out loud, with you. Describe what you
+  want; before scoping anything, it chains into gstack's own planning
+  skills for the plan's actual substance (`office-hours` for a fresh
+  idea, `plan-eng-review` for locking in architecture, `autoplan` if
+  you want the full batched pass) — deciding which one *and* carrying
+  the framing that gets a real answer out of it, not a generic one.
+  The plan that comes back is packaged into a Build Card for your
+  approval.
+- **Execute** — full build authority within an approved scope. A
+  pre-flight sync gate checks for a dirty working tree, fast-forwards a
+  stale base, and checks the task's declared scope against currently
+  open PRs for a real collision with someone else's in-flight work —
+  structurally enforced by a hook, not just prose. Wrap-up goes
+  PR-first every time: branch → PR → gstack's `review` → `qa` → `ship`
+  → merge, with `document-release` firing automatically inside `ship`.
 
-## What's different from role-modes
+Approve a plan in Commander and it hands off to Execute on its own — you
+never have to remember to type `/gstack-pilot:execute` yourself.
 
-| | `role-modes` | `gstack-pilot` |
-|---|---|---|
-| Commander's planning phase | Plans directly, or per your project's own protocol | Chains into gstack's `office-hours` (new-idea framing) → `plan-eng-review` → optionally `autoplan`, **before** scoping a Build Card |
-| Execute's task start | Whatever's checked out locally is assumed safe | **Pre-flight sync gate, hook-enforced**: dirty-tree check, stale-base fast-forward, and a live open-PR-scope collision check block the first `Write`/`Edit` until they pass — not just prose telling Execute to check |
-| Execute's wrap-up | Your project's own git workflow, whatever that is | **PR-first, no exemption for trivial changes**: state-doc update → feature branch → PR → gstack's `review` → `qa` → `ship` → merge, every time |
-| SessionEnd hook | None | A fast, stderr-only reminder if a session ends mid-wrap-up. (`SessionEnd` has no way to feed context back to Claude — this hook is a plain terminal message for the human, not a disguised instruction to the model.) |
-| SessionStart briefing | Mode-behavior text only | Same, plus: in Commander mode, if your project declares a `State Doc:` path in `.claude/CLAUDE.md`, an excerpt of it is read and injected automatically — Commander starts every session already briefed |
-| gh setup visibility | N/A | A one-time, loud nudge (any mode) the first time `gh` is found missing or unauthenticated, pointing at `TEAM_SETUP.md` step 3 — never blocks, never repeats once seen. The existing per-task `DISCLOSED:` line in `pre-flight-sync.js` stays untouched alongside it |
-| CLAUDE.md seed block | Mode explanation only | Mode explanation + a **Mode–gstack Bridge** section describing the chain sequence — written so it doesn't duplicate gstack's own separate routing-table injection if your project has both |
+## Example use cases
 
-If none of the right-hand column matters to you, you don't need this
-plugin — `role-modes` alone is simpler and has one less moving part.
+**A 3-person team building a product on gstack, only one of whom set it
+up.** The other two never learn gstack's skill names — they run
+`/gstack-pilot:commander`, describe what they want, and get the same
+quality of plan the person who configured everything would get.
+Execute's collision check is what actually matters here: if two people
+approve overlapping work at the same time, the second one gets stopped
+before it becomes a merge conflict, not after.
+
+**A solo builder who doesn't want to hold gstack's command reference in
+their head.** Talk through the idea in Commander; it figures out
+whether this is an `/office-hours` conversation or an architecture
+lock-in and drives you there.
+
+**A team wanting a hard line between "we talked about it" and "it's
+being built."** Commander literally cannot make a live-infra or
+git-write change — it hands off to Execute for that, no exceptions,
+even for something that looks trivial. If your team needs that
+separation enforced rather than promised, this is that enforcement.
+
+## Pairs well with project-memory
+
+gstack has its own optional memory layer (`gbrain`). If your team isn't
+using that — or isn't using any persistent memory system — Commander's
+first real session in a project checks for one and recommends
+[`project-memory`](https://github.com/muhaiminul00/project-memory), a
+portable Wiki-style store, if it's installed; otherwise it asks once and
+never asks again. The two plugins are designed to be installed
+together: `gstack-pilot` for *which skill, with what prompt, in what
+order*, `project-memory` for *what the team already decided and why*.
 
 ## Install
 
@@ -114,7 +169,9 @@ plugin, and stays installed exactly the way gstack's own docs describe.
 This plugin only assumes gstack is *discoverable* once installed; it
 never manages gstack's lifecycle.
 
-**If your project also wants a portable Wiki-style memory system:**
+**If your project also wants a portable Wiki-style memory system**
+(see [Pairs well with project-memory](#pairs-well-with-project-memory)
+above):
 
 ```
 /plugin marketplace add https://github.com/muhaiminul00/project-memory
@@ -134,29 +191,27 @@ CLAUDE.md starter block and `mode.json` won't exist yet. Run
 `/gstack-pilot:init` right after installing to skip the wait — it does
 exactly what the `SessionStart` hook would have done, on demand.
 
-## Usage guide
+## How to use it — day to day
 
-**Day to day**, you mostly just switch modes and let the plugin do the
-rest:
+You mostly just switch modes and talk:
 
 ```
 /gstack-pilot:commander
 ```
 
-Confirms the mode switch. From here, describe what you want built.
-Commander plans it — and if the request is a genuinely new idea not
-yet scoped, it first chains into gstack's `office-hours` skill (the
-same one `/office-hours` would run) before moving to `plan-eng-review`
-for the architecture-level plan. If you'd rather get the full batched
-review in one pass, ask for that and Commander chains into `autoplan`
-instead of stepping through individually. Either way, the plan that
-comes back is gstack's real output — Commander's job is packaging it
-into a Build Card and getting your approval, not writing the plan
-itself.
+Confirms the mode switch. From here, describe what you want built —
+plain language, no gstack knowledge required. Commander plans it, and
+if the request is a genuinely new idea not yet scoped, it first chains
+into gstack's `office-hours` skill (the same one `/office-hours` would
+run) before moving to `plan-eng-review` for the architecture-level
+plan. If you'd rather get the full batched review in one pass, ask for
+that and Commander chains into `autoplan` instead of stepping through
+individually. Either way, the plan that comes back is gstack's real
+output — Commander's job is deciding which skill gets you there,
+prompting it well, packaging the result into a Build Card, and getting
+your approval, not writing the plan itself.
 
-Once you approve, Commander hands off to Execute automatically — you
-don't need to type `/gstack-pilot:execute` yourself unless you want to
-switch modes without an in-progress plan.
+Once you approve, Commander hands off to Execute automatically.
 
 Execute builds the approved scope, then wraps up: state-doc and
 decision-log updates land, a feature branch goes up, a PR opens, and
@@ -208,6 +263,29 @@ intent:
 Never chains into gstack, never commits a plan to any file. If you ask
 something gstack-shaped while in Advisor, expect a pointer to the
 relevant gstack skill, not an automatic invocation of it.
+
+## What's different from role-modes
+
+[`role-modes`](https://github.com/muhaiminul00/role-modes) is this
+plugin's sibling — the same three-mode shape, without the gstack chain.
+`gstack-pilot` is what you install *instead of* `role-modes` the moment
+your project also runs gstack (they share a mode-state file path by
+design — see [A real design constraint](#a-real-design-constraint) —
+and are meant as alternatives for a given project, never co-installed
+together):
+
+| | `role-modes` | `gstack-pilot` |
+|---|---|---|
+| Commander's planning phase | Plans directly, or per your project's own protocol | Chains into gstack's `office-hours` (new-idea framing) → `plan-eng-review` → optionally `autoplan`, **before** scoping a Build Card |
+| Execute's task start | Whatever's checked out locally is assumed safe | **Pre-flight sync gate, hook-enforced**: dirty-tree check, stale-base fast-forward, and a live open-PR-scope collision check block the first `Write`/`Edit` until they pass — not just prose telling Execute to check |
+| Execute's wrap-up | Your project's own git workflow, whatever that is | **PR-first, no exemption for trivial changes**: state-doc update → feature branch → PR → gstack's `review` → `qa` → `ship` → merge, every time |
+| SessionEnd hook | None | A fast, stderr-only reminder if a session ends mid-wrap-up. (`SessionEnd` has no way to feed context back to Claude — this hook is a plain terminal message for the human, not a disguised instruction to the model.) |
+| SessionStart briefing | Mode-behavior text only | Same, plus: in Commander mode, if your project declares a `State Doc:` path in `.claude/CLAUDE.md`, an excerpt of it is read and injected automatically — Commander starts every session already briefed |
+| gh setup visibility | N/A | A one-time, loud nudge (any mode) the first time `gh` is found missing or unauthenticated, pointing at `TEAM_SETUP.md` step 3 — never blocks, never repeats once seen. The existing per-task `DISCLOSED:` line in `pre-flight-sync.js` stays untouched alongside it |
+| CLAUDE.md seed block | Mode explanation only | Mode explanation + a **Mode–gstack Bridge** section describing the chain sequence — written so it doesn't duplicate gstack's own separate routing-table injection if your project has both |
+
+If none of the right-hand column matters to you — your project doesn't
+run gstack — `role-modes` alone is simpler and has one less moving part.
 
 ## Composition mechanism
 
@@ -271,7 +349,18 @@ compares this field and does nothing for already-installed copies if
 it's unchanged — **every user-facing change needs a version bump
 alongside it**, not after the fact.
 
-Current release: **v1.2.0**. Minor bump over v1.1.0: a one-time, loud
+Current release: **v1.2.1**. Patch bump over v1.2.0: a full README
+repositioning (the problem gstack-pilot solves, who it's for, example
+use cases, the project-memory pairing) — docs-only, no behavior change
+on its own — plus a real behavioral fix riding the same release:
+Commander's and Execute's "session running long?" guidance now
+recommends `/compact` when more approved work is still queued this
+session (keeps branch state and decisions, cheaper than a fresh
+session re-deriving them) versus `/clear` when nothing else is
+pending, instead of defaulting to one regardless of context. See
+`docs/build-cards/BC-2026-08-31-readme-reposition-and-clear-compact.md`.
+
+Minor bump in v1.2.0 over v1.1.0: a one-time, loud
 nudge (in `hooks/session-start.js` and `commands/init.md`, sharing one
 sentinel `.claude/hooks/state/.gh-setup-checked-gstack-pilot`) fires the
 first time `gh` is found missing or unauthenticated, pointing at
@@ -360,9 +449,17 @@ gstack's actual `review` skill → merge —
 
 That live use is also what surfaced v1.0.1's real routing bug (see
 Releases above) — proof the verification loop itself works, not just
-the plugin. If you hit something this README doesn't cover, that's a
-gap in the plugin's testing, not yours to route around silently — open
-an issue.
+the plugin.
+
+**What's not yet proven:** every run above, and every run since, has
+had one person driving. The team-collaboration case this README leads
+with — two people approving overlapping work at the same time, Execute's
+collision check catching it — hasn't happened for real yet. That's the
+next real proof point, not a formality; watch it closely the first time
+it fires.
+
+If you hit something this README doesn't cover, that's a gap in the
+plugin's testing, not yours to route around silently — open an issue.
 
 ## License
 
