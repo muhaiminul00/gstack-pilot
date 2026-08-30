@@ -1,7 +1,7 @@
 # Team Setup Guide
 
 A short, copy-pasteable setup sequence for a teammate joining a project that
-runs `gstack-pilot`. Four steps — two different mechanisms, on purpose (see
+runs `gstack-pilot`. Five steps — two different mechanisms, on purpose (see
 [why below](#why-two-mechanisms)).
 
 ## The steps
@@ -27,13 +27,24 @@ delegated to Claude:
 /plugin install project-memory@project-memory
 ```
 
-**3. Activate it in this project, once:**
+**3. Install and authenticate the `gh` CLI — required before your first
+`/gstack-pilot:execute`.** Execute's pre-flight sync gate uses it for the
+PR-scope collision check (see `docs/designs/sync-gate-and-collision-check.md`);
+without it, Execute still runs, but silently loses collision detection,
+which defeats half the point. Install per
+[cli.github.com](https://cli.github.com/), then:
+
+```bash
+gh auth login
+```
+
+**4. Activate it in this project, once:**
 
 ```
 /gstack-pilot:init
 ```
 
-**4. Bootstrap this repo's own gstack requirement — only needed once, ever,
+**5. Bootstrap this repo's own gstack requirement — only needed once, ever,
 per repo.** Skip this if the repo already has it (check for a `## gstack`
 section in its root `CLAUDE.md`):
 
