@@ -130,5 +130,43 @@ per-task `DISCLOSED:` line in `pre-flight-sync.js` is untouched and stays
 the ongoing, real-time-accurate signal. Keep both in sync when editing this
 step's wording.
 
-Report exactly what was created (mode.json, the CLAUDE.md block, the gh-setup
-sentinel/nudge, or some subset), and what already existed and was left alone.
+**4. One-time gstack global-config nudge.** Check
+`.claude/hooks/state/.gstack-config-checked-gstack-pilot`. If it already
+exists, skip this step entirely - `hooks/session-start.js` (or a prior run
+of this command) already did it, and this shares that same sentinel on
+purpose so the two paths never double-nudge each other.
+
+If the sentinel is absent, look for `~/.gstack/config.yaml` (gstack's own
+GLOBAL, per-machine config file - not project-scoped, and this plugin never
+writes to it, only reads it). If it doesn't exist, report exactly:
+
+> GSTACK CONFIG: no ~/.gstack/config.yaml found - either gstack isn't
+> installed yet (see TEAM_SETUP.md step 1) or it hasn't written a config
+> file yet. Nothing to report until it exists. (One-time notice - won't
+> repeat.)
+
+If it exists, read the current values of its `proactive`, `checkpoint_mode`,
+and `routing_declined` top-level keys (a commented-out line means gstack's
+own default applies - report that as "unset - gstack defaults this to
+\<value>", don't guess or invent a value), and report exactly:
+
+> GSTACK CONFIG: current values from ~/.gstack/config.yaml (this is
+> gstack's own global, per-machine file - NOT project-scoped, and this
+> plugin never writes to it):
+>   proactive: \<value or "(unset - gstack defaults this to true)">
+>   checkpoint_mode: \<value or "(unset - gstack defaults this to explicit)">
+>   routing_declined: \<value or "(unset - gstack defaults this to false)">
+> See that file's own inline comments for the full list of settings and how
+> to change them - this plugin only reports what's there, never edits it.
+> (One-time notice - won't repeat.)
+
+Either way, once the check has run, create the sentinel file
+`.claude/hooks/state/.gstack-config-checked-gstack-pilot` (empty file) so
+neither this command nor `hooks/session-start.js` re-checks it again. This
+mirrors `hooks/session-start.js`'s `checkGstackConfigOnce()` function
+exactly - same messages, same never-blocks/never-writes guarantee. Keep
+both in sync when editing this step's wording.
+
+Report exactly what was created (mode.json, the CLAUDE.md block, the
+gh-setup sentinel/nudge, the gstack-config sentinel/nudge, or some subset),
+and what already existed and was left alone.

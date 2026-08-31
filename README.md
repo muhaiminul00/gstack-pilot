@@ -20,6 +20,7 @@ its original author.**
 - [Composition mechanism](#composition-mechanism)
 - [A real design constraint](#a-real-design-constraint)
 - [Gates and stop conditions](#gates-and-stop-conditions)
+- [Repo hygiene](#repo-hygiene)
 - [Releases](#releases)
 - [Status](#status)
 - [License](#license)
@@ -135,21 +136,11 @@ order*, `project-memory` for *what the team already decided and why*.
 
 ## Install
 
-```
-/plugin marketplace add https://github.com/muhaiminul00/gstack-pilot
-/plugin install gstack-pilot@gstack-pilot
-/gstack-pilot:init
-```
-
-That third line matters — see [why below](#plugin-install-doesnt-activate-immediately).
-
-**Onboarding a whole team?** [`TEAM_SETUP.md`](TEAM_SETUP.md) is a short,
-copy-pasteable setup sequence for teammates (including how to hand the
-gstack-install step to their own Claude Code session for retry-on-failure),
-and [`VERIFICATION_CHECKLIST.md`](VERIFICATION_CHECKLIST.md) gives concrete,
-checkable behaviors for judging whether the install actually worked.
-
-**If your project also wants gstack itself, team-installed:**
+**Prerequisite — gstack itself must be installed first.** `gstack-pilot`
+is a chaining layer over gstack's own skill suite — without gstack
+present, there's nothing here to chain into and the plugin has nothing
+useful to do. Install it before (or, at the latest, immediately after)
+the plugin below, not as an optional extra:
 
 ```bash
 git clone --depth 1 https://github.com/garrytan/gstack.git ~/.claude/skills/gstack
@@ -167,7 +158,26 @@ gstack-team-init required   # or `optional` for a softer nudge instead of a hard
 gstack is a global skill-collection git clone, not a Claude Code
 plugin, and stays installed exactly the way gstack's own docs describe.
 This plugin only assumes gstack is *discoverable* once installed; it
-never manages gstack's lifecycle.
+never manages gstack's lifecycle. (It does check, once, whether gstack's
+own global config looks sane and tells you what it finds — see
+[How to use it — day to day](#how-to-use-it--day-to-day) — but it never
+installs or edits anything on gstack's behalf.)
+
+**Now install the plugin itself:**
+
+```
+/plugin marketplace add https://github.com/muhaiminul00/gstack-pilot
+/plugin install gstack-pilot@gstack-pilot
+/gstack-pilot:init
+```
+
+That third line matters — see [why below](#plugin-install-doesnt-activate-immediately).
+
+**Onboarding a whole team?** [`TEAM_SETUP.md`](TEAM_SETUP.md) is a short,
+copy-pasteable setup sequence for teammates (including how to hand the
+gstack-install step to their own Claude Code session for retry-on-failure),
+and [`VERIFICATION_CHECKLIST.md`](VERIFICATION_CHECKLIST.md) gives concrete,
+checkable behaviors for judging whether the install actually worked.
 
 **If your project also wants a portable Wiki-style memory system**
 (see [Pairs well with project-memory](#pairs-well-with-project-memory)
@@ -224,6 +234,18 @@ If gstack isn't installed or discoverable when a chain point is
 reached, both modes say so plainly and fall back to planning/wrap-up
 without it, rather than silently skipping the chain and pretending it
 happened.
+
+**Two one-time, informational-only nudges** fire the first time a
+session (or `/gstack-pilot:init`) runs in a project: one checks whether
+`gh` is installed and authenticated (needed for Execute's PR-scope
+collision check — see [Gates and stop conditions](#gates-and-stop-conditions)),
+the other surfaces the current values of gstack's own *global* config
+(`~/.gstack/config.yaml` — `proactive`, `checkpoint_mode`,
+`routing_declined`) so you know what you're working with. Neither
+ever blocks anything, and the gstack-config one never writes to that
+file — it's global, per-machine, and this plugin only reports what's
+already there, pointing you at the file's own comments to change
+anything yourself.
 
 **A worked example:**
 
@@ -339,6 +361,22 @@ in Execute mode is denied without a valid, current-branch, fresh
 marker is treated the same as a missing one (fails closed), never
 treated as permission to proceed.
 
+## Repo hygiene
+
+This repo's own `docs/build-cards/` and `docs/designs/` — the Build
+Cards and design docs generated while building `gstack-pilot` itself —
+are kept on disk (so `plan-eng-review`'s repo-local design-doc search
+still works when we're the ones developing this plugin) but are
+`.gitignore`d, not tracked in git. They're our own internal build
+history, not something a plugin consumer needs when browsing this repo
+on GitHub — same category of thing as any team's internal Wiki. If a
+Release entry below cites one by name, that's a pointer for our own
+records, not a link expected to resolve in your clone. This repo's root
+`CLAUDE.md`, by contrast, stays tracked and public — it's gstack's own
+skill-routing table, used for real every time a Claude Code session
+(ours) works on this repo's own code, not something specific to any one
+build.
+
 ## Releases
 
 `plugin.json` is the sole version source — no duplicate `version`
@@ -349,7 +387,23 @@ compares this field and does nothing for already-installed copies if
 it's unchanged — **every user-facing change needs a version bump
 alongside it**, not after the fact.
 
-Current release: **v1.2.1**. Patch bump over v1.2.0: a full README
+Current release: **v1.3.0**. Minor bump over v1.2.1: four repo-hygiene/
+onboarding fixes. `docs/build-cards/` and `docs/designs/` are now
+`.gitignore`d (kept on disk, no longer public — see [Repo
+hygiene](#repo-hygiene)); the Install section now states gstack as a
+mandatory prerequisite, moved before the plugin-install commands
+(previously worded as an optional extra, which undersold that
+`gstack-pilot` does nothing useful without it); and a new one-time,
+informational-only nudge surfaces gstack's own global config
+(`~/.gstack/config.yaml`) values at first session/`init`, mirroring the
+`gh`-setup nudge's mechanism exactly (new sentinel
+`.claude/hooks/state/.gstack-config-checked-gstack-pilot`) — never
+writes to that file, since it's per-machine, not per-project. `CLAUDE.md`
+was checked and confirmed correct as-is, no change. (Full build record:
+`BC-2026-08-31-public-repo-hygiene-and-gstack-mandatory` — internal, see
+[Repo hygiene](#repo-hygiene).)
+
+Patch bump in v1.2.1 over v1.2.0: a full README
 repositioning (the problem gstack-pilot solves, who it's for, example
 use cases, the project-memory pairing) — docs-only, no behavior change
 on its own — plus a real behavioral fix riding the same release:
@@ -357,8 +411,10 @@ Commander's and Execute's "session running long?" guidance now
 recommends `/compact` when more approved work is still queued this
 session (keeps branch state and decisions, cheaper than a fresh
 session re-deriving them) versus `/clear` when nothing else is
-pending, instead of defaulting to one regardless of context. See
-`docs/build-cards/BC-2026-08-31-readme-reposition-and-clear-compact.md`.
+pending, instead of defaulting to one regardless of context. (Full
+build record: `BC-2026-08-31-readme-reposition-and-clear-compact` —
+kept out of this public repo as internal build history, not a resolvable
+path in your clone; see [Repo hygiene](#repo-hygiene) below.)
 
 Minor bump in v1.2.0 over v1.1.0: a one-time, loud
 nudge (in `hooks/session-start.js` and `commands/init.md`, sharing one
@@ -371,9 +427,9 @@ to miss. That per-task `DISCLOSED:` line in `pre-flight-sync.js` is
 untouched — the nudge is a loud first impression, not a replacement for
 the ongoing, real-time-accurate signal. Never blocks, in any session kind.
 `TODOS.md` gained a fourth deferred item (re-nudging if `gh` auth
-regresses *after* the one-time check already passed clean). See
-`docs/designs/gh-setup-loud-nudge.md` and
-`docs/build-cards/BC-2026-08-31-gh-setup-loud-nudge.md`.
+regresses *after* the one-time check already passed clean). (Full
+design/build record: `gh-setup-loud-nudge` — internal, see
+[Repo hygiene](#repo-hygiene) below.)
 
 Minor bump in v1.1.0 over v1.0.1: Execute now runs a
 pre-flight sync gate (`scripts/pre-flight-sync.js`) before any branch or
@@ -385,10 +441,9 @@ Cards — enforced structurally by a new `PreToolUse` hook
 Codex outside-voice pass; the outside-voice pass is why this became a
 real hook instead of stronger wording — prose telling Execute to check
 doesn't guarantee it runs every time). `TEAM_SETUP.md` now names `gh`
-CLI install as a prerequisite step. See
-`docs/designs/sync-gate-and-collision-check.md` and
-`docs/build-cards/BC-2026-08-31-sync-gate-and-collision-check.md` for
-the full design/build record.
+CLI install as a prerequisite step. (Full design/build record:
+`sync-gate-and-collision-check` — internal, see
+[Repo hygiene](#repo-hygiene) below.)
 
 Patch fix in v1.0.1 over v1.0.0: first real-world
 use (on `zm-brain`, see Status below) found the `office-hours` vs

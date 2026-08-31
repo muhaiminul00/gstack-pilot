@@ -5,3 +5,9 @@ Thumbs.db
 # Per-project, machine/session-local plugin state (mode.json, the
 # pre-flight-sync preflight-ok marker) - never meant to be committed.
 .claude/hooks/state/
+
+# Internal build history - kept on disk for plan-eng-review's local
+# design-doc search, but not public. See
+# BC-2026-08-31-public-repo-hygiene-and-gstack-mandatory.
+docs/build-cards/
+docs/designs/

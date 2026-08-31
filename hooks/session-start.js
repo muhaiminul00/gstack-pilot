@@ -15,6 +15,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 const { execFileSync } = require('child_process');
 
@@ -96,6 +97,11 @@ if (mode === 'commander') {
 const ghNudge = checkGhSetupOnce(stateDir);
 if (ghNudge) {
   contextParts.push('', ghNudge);
+}
+
+const gstackConfigNudge = checkGstackConfigOnce(stateDir);
+if (gstackConfigNudge) {
+  contextParts.push('', gstackConfigNudge);
 }
 
 const context = contextParts.join('\n');
@@ -211,6 +217,80 @@ function checkGhSetupOnce(dir) {
     fs.writeFileSync(sentinelFile, '', 'utf8');
   } catch (err) {
     // Best-effort, same as seedClaudeMd() - never let this block the session.
+  }
+
+  return nudge;
+}
+
+// One-time, informational-only nudge surfacing gstack's own GLOBAL config
+// (BC-2026-08-31-public-repo-hygiene-and-gstack-mandatory). Unlike the gh
+// nudge above, this reads a file that lives outside any project entirely -
+// ~/.gstack/config.yaml, gstack's own per-machine settings (proactive,
+// checkpoint_mode, routing_declined, etc.) - so this function NEVER writes
+// to that file, only reads it. Forcing or silently editing another tool's
+// global config from inside one project's plugin hook would affect every
+// other project the human touches; that's a materially bigger blast radius
+// than mode.json (project-scoped) and was explicitly rejected in favor of
+// "surface it, point at the real file, let the human decide."
+// Gated by its own namespaced sentinel, written once ever regardless of
+// outcome (file present or missing) - same semantics as checkGhSetupOnce().
+// commands/init.md carries an identical check sharing this same sentinel -
+// same hook/command duplication reason as seedClaudeMd() above.
+// Never blocks: only ever returns nudge text or null, never throws past its
+// own try/catch, in any session kind.
+function checkGstackConfigOnce(dir) {
+  const sentinelFile = path.join(dir, '.gstack-config-checked-gstack-pilot');
+  if (fs.existsSync(sentinelFile)) return null;
+
+  let nudge = null;
+  try {
+    const configPath = path.join(os.homedir(), '.gstack', 'config.yaml');
+    let configText = null;
+    try {
+      configText = fs.readFileSync(configPath, 'utf8');
+    } catch (err) {
+      configText = null;
+    }
+
+    if (configText === null) {
+      nudge =
+        'GSTACK CONFIG: no ~/.gstack/config.yaml found - either gstack isn\'t installed yet ' +
+        '(see TEAM_SETUP.md step 1) or it hasn\'t written a config file yet. Nothing to report ' +
+        'until it exists. (One-time notice - won\'t repeat.)';
+    } else {
+      // Simple line-based read, not a YAML parse - these are flat top-level
+      // `key: value` lines in gstack's own file, and pulling in a YAML
+      // dependency for three fields isn't worth it. A commented-out line
+      // (`# key: value`) means "using gstack's own default", reported as such
+      // rather than guessed at - this nudge doesn't restate gstack's default
+      // values, it points at the file's own inline comments for those.
+      const readValue = (key) => {
+        const re = new RegExp('^' + key + ':\\s*(\\S+)', 'm');
+        const match = configText.match(re);
+        return match ? match[1] : null;
+      };
+
+      const proactive = readValue('proactive');
+      const checkpointMode = readValue('checkpoint_mode');
+      const routingDeclined = readValue('routing_declined');
+
+      const lines = [
+        'GSTACK CONFIG: current values from ~/.gstack/config.yaml (this is gstack\'s own ' +
+          'global, per-machine file - NOT project-scoped, and this plugin never writes to it):',
+        `  proactive: ${proactive || '(unset - gstack defaults this to true)'}`,
+        `  checkpoint_mode: ${checkpointMode || '(unset - gstack defaults this to explicit)'}`,
+        `  routing_declined: ${routingDeclined || '(unset - gstack defaults this to false)'}`,
+        'See that file\'s own inline comments for the full list of settings and how to change ' +
+          'them - this plugin only reports what\'s there, never edits it. (One-time notice - ' +
+          'won\'t repeat.)'
+      ];
+      nudge = lines.join('\n');
+    }
+
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(sentinelFile, '', 'utf8');
+  } catch (err) {
+    // Best-effort, same as checkGhSetupOnce() - never let this block the session.
   }
 
   return nudge;
