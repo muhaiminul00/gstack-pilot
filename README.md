@@ -139,13 +139,16 @@ order*, `project-memory` for *what the team already decided and why*.
 is a chaining layer over gstack's own skill suite — without gstack
 present, there's nothing here to chain into and the plugin has nothing
 useful to do. Install it before (or, at the latest, immediately after)
-the plugin below, not as an optional extra:
+the plugin below, not as an optional extra.
 
-```bash
-git clone --depth 1 https://github.com/garrytan/gstack.git ~/.claude/skills/gstack
-cd ~/.claude/skills/gstack
-./setup --team
-```
+This is plain shell, so don't type it yourself — paste it as a message
+into your own Claude Code session and let it run and retry on failure:
+
+> Check if gstack is installed globally: `test -d ~/.claude/skills/gstack/bin`.
+> If not, clone it (`git clone --depth 1 https://github.com/garrytan/gstack.git
+> ~/.claude/skills/gstack`) and run `./setup --team` inside it. If any step
+> fails, diagnose why (missing `bun`, `PATH` issues, etc.), fix it, and retry
+> until it actually succeeds — don't just report the error and stop.
 
 then, once, from inside the *consuming* project's own repo:
 
@@ -162,7 +165,10 @@ own global config looks sane and tells you what it finds — see
 [How to use it — day to day](#how-to-use-it--day-to-day) — but it never
 installs or edits anything on gstack's behalf.)
 
-**Now install the plugin itself:**
+**Now install the plugin itself.** These are interactive Claude Code
+commands with no tool-equivalent — Claude can't run them on your behalf,
+you have to type them yourself. Either form works, pick whichever fits
+how you already drive Claude Code — the interactive session UI:
 
 ```
 /plugin marketplace add https://github.com/muhaiminul00/gstack-pilot
@@ -170,7 +176,19 @@ installs or edits anything on gstack's behalf.)
 /gstack-pilot:init
 ```
 
-That third line matters — see [why below](#plugin-install-doesnt-activate-immediately).
+or the CLI-equivalent from a shell, if you already have a terminal-based
+Claude Code workflow:
+
+```bash
+claude plugin marketplace add https://github.com/muhaiminul00/gstack-pilot
+claude plugin install gstack-pilot@gstack-pilot
+```
+(then run `/gstack-pilot:init` inside your next Claude Code session — see below)
+
+**Don't skip that third line.** This is the single most common real
+mistake: the plugin shows up as installed in `/plugin` listings but does
+nothing in your current project until `/gstack-pilot:init` runs — see
+[why below](#plugin-install-doesnt-activate-immediately).
 
 **Onboarding a whole team?** [`TEAM_SETUP.md`](TEAM_SETUP.md) is a short,
 copy-pasteable setup sequence for teammates (including how to hand the
