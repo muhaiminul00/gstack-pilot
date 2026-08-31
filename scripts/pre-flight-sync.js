@@ -46,6 +46,19 @@
 //    Claude Code's own session id (PreToolUse hooks receive one on stdin,
 //    but this script isn't a hook). A TTL is the honest, practical stand-in
 //    documented here rather than silently assumed equivalent.
+//
+// --allow-dirty (BC-2026-08-31-preflight-allow-dirty, design:
+// docs/designs/preflight-allow-dirty.md): a narrow, explicit escape hatch
+// for the one real case Step 1 has no way to express - a Build Card whose
+// entire deliverable IS committing the repo's current dirty tree (a
+// live-hit deadlock on zm-brain: no flag existed, so the only way through
+// was routing mutations around this gate entirely via Bash instead of
+// Edit/Write). When passed, Step 1 is skipped in full - all-or-nothing,
+// no partial "only files outside Scope" filtering - and execution proceeds
+// straight to Step 2. Every other invocation (the overwhelming majority)
+// is unaffected: no flag, no behavior change, still fails closed. See the
+// design doc for why this is a flag Execute passes deliberately rather
+// than a text-matching heuristic on the Build Card's own prose.
 
 const fs = require('fs');
 const path = require('path');
@@ -58,13 +71,14 @@ const stateDir = path.join(projectDir, '.claude', 'hooks', 'state');
 const markerPath = path.join(stateDir, 'preflight-ok');
 
 function parseArgs(argv) {
-  const args = { sessionKind: 'interactive' };
+  const args = { sessionKind: 'interactive', allowDirty: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--branch') args.branch = argv[++i];
     else if (a === '--card') args.card = argv[++i];
     else if (a === '--scope') args.scope = argv[++i];
     else if (a === '--session-kind') args.sessionKind = argv[++i];
+    else if (a === '--allow-dirty') args.allowDirty = true;
   }
   return args;
 }
@@ -131,19 +145,24 @@ function main() {
   const sessionKind = args.sessionKind || 'interactive';
 
   // ---- Step 1: dirty working tree ----
-  const status = tryGit(['status', '--porcelain']);
-  if (!status.ok) {
-    halt(sessionKind, 'could not read git status: ' + status.out.trim());
+  if (args.allowDirty) {
+    console.log('OK: dirty tree allowed (--allow-dirty passed) - Step 1 skipped.');
+  } else {
+    const status = tryGit(['status', '--porcelain']);
+    if (!status.ok) {
+      halt(sessionKind, 'could not read git status: ' + status.out.trim());
+    }
+    if (status.out.trim().length > 0) {
+      const files = status.out.trim().split('\n').map((l) => l.trim()).join(', ');
+      halt(
+        sessionKind,
+        'working tree is not clean before starting this task. Files: ' + files +
+          '. Commit, stash, or confirm these changes belong to this task before continuing - never auto-stashed. ' +
+          'If this task\'s own deliverable is committing this exact working-tree state, rerun with --allow-dirty.'
+      );
+    }
+    console.log('OK: working tree clean.');
   }
-  if (status.out.trim().length > 0) {
-    const files = status.out.trim().split('\n').map((l) => l.trim()).join(', ');
-    halt(
-      sessionKind,
-      'working tree is not clean before starting this task. Files: ' + files +
-        '. Commit, stash, or confirm these changes belong to this task before continuing - never auto-stashed.'
-    );
-  }
-  console.log('OK: working tree clean.');
 
   // ---- Step 2: resolve base branch, no-checkout fetch ----
   // Deliberately never falls back to "whatever's currently checked out" -
