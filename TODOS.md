@@ -122,3 +122,38 @@ than built - see that design doc's NOT-in-scope section and Decision 4.
 
 **Depends on / blocked by:** BC-2026-08-31-gh-setup-loud-nudge shipping
 first, so there's a real sentinel mechanism to extend.
+
+---
+
+## Smarter mid-run skill-selection routing
+
+**What:** Replace or augment the fixed 4-case decision table in Execute's
+mid-run planning/investigation chain (`investigate` / `plan-eng-review` /
+`cso` / `office-hours` / open fallback) with a scored match across all
+55 gstack skills, so Execute doesn't have to fall back on its own
+judgment for anything outside the four named cases.
+
+**Why:** The fixed table covers the common cases predictably, but the
+open fallback ("Execute's own judgment, any gstack skill") has no
+structure - it might miss a good fit a scored match would catch more
+reliably.
+
+**Pros:** Could meaningfully widen and sharpen the set of situations the
+mid-run chain resolves well, instead of leaning on unstructured judgment
+outside the four named cases.
+
+**Cons:** Building a scoring system across 55 skills is real effort, and
+solving it now would be guessing at a problem that hasn't been measured
+yet - we don't know how often the open-fallback path actually misfires
+in practice.
+
+**Context:** Raised during `/plan-eng-review` for
+BC-2026-08-31-execute-midrun-planning-chain
+(`docs/designs/execute-midrun-planning-chain.md`) and explicitly
+deferred there rather than built - see that design doc's NOT-in-scope
+section.
+
+**Depends on / blocked by:** BC-2026-08-31-execute-midrun-planning-chain
+shipping first and getting real mid-run trigger usage, so there's actual
+evidence the fixed table's coverage is insufficient before building a
+replacement for it.
