@@ -20,7 +20,6 @@ its original author.**
 - [Composition mechanism](#composition-mechanism)
 - [A real design constraint](#a-real-design-constraint)
 - [Gates and stop conditions](#gates-and-stop-conditions)
-- [Repo hygiene](#repo-hygiene)
 - [Releases](#releases)
 - [Status](#status)
 - [License](#license)
@@ -290,24 +289,10 @@ relevant gstack skill, not an automatic invocation of it.
 
 [`role-modes`](https://github.com/muhaiminul00/role-modes) is this
 plugin's sibling — the same three-mode shape, without the gstack chain.
-`gstack-pilot` is what you install *instead of* `role-modes` the moment
-your project also runs gstack (they share a mode-state file path by
-design — see [A real design constraint](#a-real-design-constraint) —
-and are meant as alternatives for a given project, never co-installed
-together):
-
-| | `role-modes` | `gstack-pilot` |
-|---|---|---|
-| Commander's planning phase | Plans directly, or per your project's own protocol | Chains into gstack's `office-hours` (new-idea framing) → `plan-eng-review` → optionally `autoplan`, **before** scoping a Build Card |
-| Execute's task start | Whatever's checked out locally is assumed safe | **Pre-flight sync gate, hook-enforced**: dirty-tree check, stale-base fast-forward, and a live open-PR-scope collision check block the first `Write`/`Edit` until they pass — not just prose telling Execute to check |
-| Execute's wrap-up | Your project's own git workflow, whatever that is | **PR-first, no exemption for trivial changes**: state-doc update → feature branch → PR → gstack's `review` → `qa` → `ship` → merge, every time |
-| SessionEnd hook | None | A fast, stderr-only reminder if a session ends mid-wrap-up. (`SessionEnd` has no way to feed context back to Claude — this hook is a plain terminal message for the human, not a disguised instruction to the model.) |
-| SessionStart briefing | Mode-behavior text only | Same, plus: in Commander mode, if your project declares a `State Doc:` path in `.claude/CLAUDE.md`, an excerpt of it is read and injected automatically — Commander starts every session already briefed |
-| gh setup visibility | N/A | A one-time, loud nudge (any mode) the first time `gh` is found missing or unauthenticated, pointing at `TEAM_SETUP.md` step 3 — never blocks, never repeats once seen. The existing per-task `DISCLOSED:` line in `pre-flight-sync.js` stays untouched alongside it |
-| CLAUDE.md seed block | Mode explanation only | Mode explanation + a **Mode–gstack Bridge** section describing the chain sequence — written so it doesn't duplicate gstack's own separate routing-table injection if your project has both |
-
-If none of the right-hand column matters to you — your project doesn't
-run gstack — `role-modes` alone is simpler and has one less moving part.
+It's what you'd use on a project that doesn't run gstack. The two share
+a mode-state file path by design (see [A real design
+constraint](#a-real-design-constraint)) and are meant as alternatives
+for a given project, never co-installed together.
 
 ## Composition mechanism
 
@@ -361,22 +346,6 @@ in Execute mode is denied without a valid, current-branch, fresh
 marker is treated the same as a missing one (fails closed), never
 treated as permission to proceed.
 
-## Repo hygiene
-
-This repo's own `docs/build-cards/` and `docs/designs/` — the Build
-Cards and design docs generated while building `gstack-pilot` itself —
-are kept on disk (so `plan-eng-review`'s repo-local design-doc search
-still works when we're the ones developing this plugin) but are
-`.gitignore`d, not tracked in git. They're our own internal build
-history, not something a plugin consumer needs when browsing this repo
-on GitHub — same category of thing as any team's internal Wiki. If a
-Release entry below cites one by name, that's a pointer for our own
-records, not a link expected to resolve in your clone. This repo's root
-`CLAUDE.md`, by contrast, stays tracked and public — it's gstack's own
-skill-routing table, used for real every time a Claude Code session
-(ours) works on this repo's own code, not something specific to any one
-build.
-
 ## Releases
 
 `plugin.json` is the sole version source — no duplicate `version`
@@ -387,11 +356,19 @@ compares this field and does nothing for already-installed copies if
 it's unchanged — **every user-facing change needs a version bump
 alongside it**, not after the fact.
 
-Current release: **v1.3.0**. Minor bump over v1.2.1: four repo-hygiene/
+Current release: **v1.3.1**. Patch bump over v1.3.0: README trim — the
+"Repo hygiene" section (our own internal git-tracking process for
+`docs/build-cards`/`docs/designs`, no relevance to plugin users) was
+removed entirely, and "What's different from role-modes" was cut from
+a full feature-comparison table down to a short paragraph stating the
+one thing that actually matters to a reader: the shared `mode.json`
+path and never-co-install rule. Docs-only, no behavior change.
+
+Prior release: **v1.3.0**. Minor bump over v1.2.1: four repo-hygiene/
 onboarding fixes. `docs/build-cards/` and `docs/designs/` are now
-`.gitignore`d (kept on disk, no longer public — see [Repo
-hygiene](#repo-hygiene)); the Install section now states gstack as a
-mandatory prerequisite, moved before the plugin-install commands
+`.gitignore`d (kept on disk, no longer public); the Install section
+now states gstack as a mandatory prerequisite, moved before the
+plugin-install commands
 (previously worded as an optional extra, which undersold that
 `gstack-pilot` does nothing useful without it); and a new one-time,
 informational-only nudge surfaces gstack's own global config
@@ -400,8 +377,8 @@ informational-only nudge surfaces gstack's own global config
 `.claude/hooks/state/.gstack-config-checked-gstack-pilot`) — never
 writes to that file, since it's per-machine, not per-project. `CLAUDE.md`
 was checked and confirmed correct as-is, no change. (Full build record:
-`BC-2026-08-31-public-repo-hygiene-and-gstack-mandatory` — internal, see
-[Repo hygiene](#repo-hygiene).)
+`BC-2026-08-31-public-repo-hygiene-and-gstack-mandatory` — kept on disk,
+not tracked in this public repo.)
 
 Patch bump in v1.2.1 over v1.2.0: a full README
 repositioning (the problem gstack-pilot solves, who it's for, example
@@ -414,7 +391,7 @@ session re-deriving them) versus `/clear` when nothing else is
 pending, instead of defaulting to one regardless of context. (Full
 build record: `BC-2026-08-31-readme-reposition-and-clear-compact` —
 kept out of this public repo as internal build history, not a resolvable
-path in your clone; see [Repo hygiene](#repo-hygiene) below.)
+path in your clone.)
 
 Minor bump in v1.2.0 over v1.1.0: a one-time, loud
 nudge (in `hooks/session-start.js` and `commands/init.md`, sharing one
@@ -428,8 +405,8 @@ untouched — the nudge is a loud first impression, not a replacement for
 the ongoing, real-time-accurate signal. Never blocks, in any session kind.
 `TODOS.md` gained a fourth deferred item (re-nudging if `gh` auth
 regresses *after* the one-time check already passed clean). (Full
-design/build record: `gh-setup-loud-nudge` — internal, see
-[Repo hygiene](#repo-hygiene) below.)
+design/build record: `gh-setup-loud-nudge` — kept on disk, not tracked
+in this public repo.)
 
 Minor bump in v1.1.0 over v1.0.1: Execute now runs a
 pre-flight sync gate (`scripts/pre-flight-sync.js`) before any branch or
@@ -442,8 +419,8 @@ Codex outside-voice pass; the outside-voice pass is why this became a
 real hook instead of stronger wording — prose telling Execute to check
 doesn't guarantee it runs every time). `TEAM_SETUP.md` now names `gh`
 CLI install as a prerequisite step. (Full design/build record:
-`sync-gate-and-collision-check` — internal, see
-[Repo hygiene](#repo-hygiene) below.)
+`sync-gate-and-collision-check` — kept on disk, not tracked in this
+public repo.)
 
 Patch fix in v1.0.1 over v1.0.0: first real-world
 use (on `zm-brain`, see Status below) found the `office-hours` vs
