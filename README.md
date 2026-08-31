@@ -331,7 +331,12 @@ live-infra-write safe-gate (override the number in your project's own
 `.claude/CLAUDE.md`), and any gstack STOP/plan-mode gate ends the turn
 exactly like any other stop condition — never bypassed to keep an
 auto-handoff moving. A credential gate, an unresolved conflict, or a
-"decision needed" flag always ends the turn and waits for you.
+"decision needed" flag always ends the turn and waits for you — unless
+the decision is something Execute can actually research itself
+(architecture, bug root cause, security), in which case it gets one
+mid-run gstack invocation (`investigate` / `plan-eng-review` / `cso` /
+`office-hours`, or Execute's own judgment) before falling back to the
+same stop-and-wait behavior.
 
 Execute has one more, structural rather than prose: the pre-flight sync
 gate. A dirty working tree, a base branch that can't fast-forward

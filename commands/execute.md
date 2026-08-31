@@ -28,6 +28,15 @@ Only once this chain and this project's own mandatory wrap-up writes have actual
 
 **Do not self-invoke `commander` if a stop condition was hit instead** - a credential gate, an unresolved conflict, a "decision needed" flag, a gstack STOP/plan-mode gate, or anything that would change or add to the system's design. Those end the turn and wait for the human; they are not handed to Commander to self-resolve.
 
+**Mid-run planning/investigation chain (a fork inside "decision needed," not a new STOP category):** when you would otherwise raise the decision-needed STOP above, first ask whether this is something you can actually resolve yourself by researching or investigating - an architecture question, an unclear bug root cause, a security question - as opposed to something only the human can answer (private/business information, a credential, a genuine scope-changing choice). If it's the latter, STOP exactly as above, completely unchanged - this check never weakens or bypasses the existing STOP conditions. If it's the former, invoke the matching gstack skill ONCE this task, same file-reference chaining as the wrap-up chain above ("Follow `<skill>/SKILL.md` - all sections, full depth"):
+- Unclear bug root cause -> `investigate`
+- Architecture/design mismatch -> `plan-eng-review`
+- Security question -> `cso`
+- Open "is this the right approach" question -> `office-hours`
+- Anything else that fits this trigger but not the four above -> your own judgment, any gstack skill
+
+After the invoked skill resolves the question: log the resolution via `gstack-decision-log` (best-effort, same `|| true` pattern gstack's own skills use), then check whether the resolution stays inside this Build Card's original `Scope`. If it does, resume implementation on the same task branch - the pre-flight marker is unaffected, it only concerns git dirty-state. If the resolution implies changing or adding to the Build Card's scope, the existing "anything that would change or add to the system's design" STOP fires instead - never silently resume on an expanded scope just because a planning skill surfaced a better idea. Hard cap: at most one mid-run gstack invocation per task. If you are still stuck after that one attempt, escalate to the decision-needed STOP above and wait for the human - never a second auto-invoke for the same task. No separate headless/spawned handling is needed here - the invoked skill's own `SESSION_KIND` branching already asks the human normally when interactive, auto-decides its recommended option when spawned, and reports BLOCKED when headless with no human to ask.
+
 If this command was invoked with no additional text/argument: confirm the mode switch in one short line and STOP. Do not read files, do not begin any task. Wait for the next prompt.
 
 This mode persists across sessions until `/gstack-pilot:commander` or `/gstack-pilot:advisor` is invoked.
