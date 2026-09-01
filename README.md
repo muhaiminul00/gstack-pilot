@@ -381,7 +381,21 @@ compares this field and does nothing for already-installed copies if
 it's unchanged — **every user-facing change needs a version bump
 alongside it**, not after the fact.
 
-Current release: **v1.6.0**. Minor bump over v1.5.1: the PR-first
+Current release: **v1.6.1**. Patch bump over v1.6.0: `hooks/
+pre-tool-use.js`'s Execute-mode Write/Edit gate now exempts writes to
+`mode.json` itself from the branch/marker check. Found live on a real
+project (Zenny) using the v1.6.0 exemption this same patch's prior
+version added: once Execute merges its own task branch to `main` and
+deletes it (the direct-to-main path that exemption enables), the
+pre-flight marker still names the now-gone branch — and the
+mode-handback write (`execute` → `commander`) that's supposed to exit
+Execute mode got blocked by the very gate it was trying to leave. The
+fix is narrow: only a write whose target resolves to `mode.json`
+skips the marker check, nothing else. No `--allow-dirty`-style opt-in
+needed since this isn't a task mutation, it's the hand-off mechanism
+itself.
+
+Prior release: **v1.6.0**. Minor bump over v1.5.1: the PR-first
 wrap-up chain default is now a narrow, opt-in override — if a
 project's own CLAUDE.md already declares its own trivial-housekeeping
 exemption for its git workflow (e.g. "a state-doc-only or Wiki-only

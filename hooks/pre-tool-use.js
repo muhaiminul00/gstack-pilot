@@ -97,6 +97,19 @@ function main() {
     return;
   }
 
+  // A write to mode.json itself is the hand-back/hand-off mechanism, not a
+  // task mutation - always allow it regardless of marker/branch state. Without
+  // this, an Execute task that merges its own branch and deletes it (the
+  // trivial-housekeeping exemption's own direct-to-main path) leaves the
+  // marker pointing at a now-gone branch, and the mode-switch write that's
+  // supposed to get OUT of execute mode gets blocked by the very state it's
+  // trying to leave - a real deadlock hit live, BC-077-T5-T7 (2026-09-02).
+  const targetPath = input.tool_input && input.tool_input.file_path;
+  if (targetPath && path.resolve(String(targetPath)) === modeFile) {
+    allow();
+    return;
+  }
+
   let marker = null;
   try {
     const raw = fs.readFileSync(markerFile, 'utf8');
