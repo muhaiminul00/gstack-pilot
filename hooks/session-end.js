@@ -11,10 +11,11 @@
 // hookSpecificOutput/additionalContext here - it would not be consumed.
 //
 // This hook is therefore a human safety net only. The actual Claude-visible
-// enforcement of "PR-first, no trivial-housekeeping exemption" lives in
-// commands/execute.md's own prose (Claude reads and follows that file
-// directly while in Execute mode) - this hook just reminds the human at the
-// terminal in case that chain didn't actually run before the session ends.
+// enforcement of "PR-first by default, narrow project-declared exemption
+// only if opted into" lives in commands/execute.md's own prose (Claude
+// reads and follows that file directly while in Execute mode) - this hook
+// just reminds the human at the terminal in case that chain didn't
+// actually run before the session ends.
 
 const fs = require('fs');
 const path = require('path');
@@ -33,8 +34,8 @@ try {
 if (mode === 'commander' || mode === 'execute') {
   process.stderr.write(
     'gstack-pilot: session ended in ' + mode + ' mode - remember this plugin\'s ' +
-    'wrap-up is PR-first for every change, no trivial-housekeeping exemption: state-' +
-    'doc/decision-log updates committed on a feature branch, PR opened, gstack\'s ' +
+    'wrap-up is PR-first by default (no trivial-housekeeping exemption unless this ' +
+    'project declares one): state-doc/decision-log updates committed on a feature branch, PR opened, gstack\'s ' +
     'review -> qa -> ship chain actually run, before merging. If that did not happen ' +
     'this session, it still needs to before the work is really done.\n'
   );

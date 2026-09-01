@@ -95,8 +95,10 @@ configure once and forget:
   stale base, and checks the task's declared scope against currently
   open PRs for a real collision with someone else's in-flight work —
   structurally enforced by a hook, not just prose. Wrap-up goes
-  PR-first every time: branch → PR → gstack's `review` → `qa` → `ship`
-  → merge, with `document-release` firing automatically inside `ship`.
+  PR-first by default: branch → PR → gstack's `review` → `qa` → `ship`
+  → merge, with `document-release` firing automatically inside `ship`
+  (a project can declare its own narrow trivial-housekeeping exemption
+  in its CLAUDE.md, since v1.6.0 — see Releases below).
 
 Approve a plan in Commander and it hands off to Execute on its own — you
 never have to remember to type `/gstack-pilot:execute` yourself.
