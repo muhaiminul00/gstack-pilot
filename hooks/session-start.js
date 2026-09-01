@@ -68,7 +68,8 @@ const modeInstructions = {
     'them, test what you build, report precisely. Before any branch/file mutation, this task\'s first action is ' +
     '`node scripts/pre-flight-sync.js` (dirty-tree/stale-base/PR-scope-collision gate) - this applies even on a ' +
     'resumed session, not just a freshly-invoked one, and a PreToolUse hook independently blocks Write/Edit ' +
-    'without a valid marker from it. Wrap-up is PR-first, no trivial-housekeeping exemption: state-doc updates ' +
+    'without a valid marker from it. Wrap-up is PR-first by default, no trivial-housekeeping exemption unless ' +
+    'this project\'s CLAUDE.md declares one: state-doc updates ' +
     'land, then a commit on the task branch the pre-flight step already created, a PR, and gstack\'s ' +
     "review -> qa -> ship chain, before merging - see this command's own file for the exact chain. Follow this " +
     "project's own Executor protocol if its CLAUDE.md names one.",
@@ -332,8 +333,9 @@ function seedClaudeMd(dir) {
     '  safe/read-only single-file actions directly, hands off anything else to',
     '  `/gstack-pilot:execute`.',
     '- `/gstack-pilot:execute` - full build authority within an approved scope of',
-    '  work; wraps up PR-first (no trivial-housekeeping exemption) through gstack\'s',
-    '  review -> qa -> ship chain before merging.',
+    '  work; wraps up PR-first by default (a project can declare its own narrow',
+    '  trivial-housekeeping exemption) through gstack\'s review -> qa -> ship chain',
+    '  before merging.',
     '',
     '**Mode-gstack Bridge - this section only, not a routing table:** the two bullets',
     'above are the actual mode->skill chain this plugin fires automatically. If this',

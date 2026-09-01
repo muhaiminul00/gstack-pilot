@@ -157,3 +157,81 @@ section.
 shipping first and getting real mid-run trigger usage, so there's actual
 evidence the fixed table's coverage is insufficient before building a
 replacement for it.
+
+---
+
+## Mid-build fact-indexing as an automatic chain step
+
+**What:** Add a step to Execute's existing chains (wrap-up and/or mid-run
+planning) that indexes a durable fact into this project's memory system
+as soon as it's learned mid-build, instead of only at end-of-session
+wrap-up.
+
+**Why:** Raised during a real Zenny session (2026-09-01): a project's
+end-of-session-only indexing means a fact learned early in a long Execute
+run sits unindexed for the whole session - if the session ends abnormally
+(context exhaustion, crash, human interrupt) before wrap-up, the fact is
+lost even though it was genuinely learned and used.
+
+**Pros:** Closes a real loss window that the current wrap-up-only design
+structurally can't close. Would make gstack-pilot's memory-system
+integration meaningfully more robust for long Execute runs specifically.
+
+**Cons:** No real usage data yet on how often this loss window actually
+bites in practice (the mid-run chain shipped 2026-08-31 already reduces
+how long Execute goes without a checkpoint) - building an automatic
+indexing step needs its own design pass first: what counts as "durable
+enough to index immediately" vs. noise that would thrash a project's
+Wiki/memory-system with low-value entries, and how the step composes
+with "this project's own mandatory wrap-up writes" (already generic,
+already project-defined) without duplicating it.
+
+**Context:** Raised alongside the Zenny -> gstack-pilot migration
+(`docs/designs/zenny-launch-blueprint.md` is unrelated; see Zenny's own
+Wiki entry for this migration, cross-referenced from `Wiki/reference/
+gstack-pilot-plugin.md`). Not Zenny-specific in substance - relevant to
+any project using gstack-pilot's chains, since indexing is currently
+always end-of-session regardless of project.
+
+**Depends on / blocked by:** Real usage evidence that the loss window
+matters in practice - same "don't solve an unmeasured problem" standard
+this file already applies to the two entries above it.
+
+---
+
+## Conditional project-memory writes in native commands
+
+**What:** When a project's recorded Memory System is the `project-memory`
+plugin (not a project's own Wiki/docs system), have gstack-pilot's native
+chains (wrap-up, mid-run) write facts/decisions via `project-memory`'s own
+commands instead of generic "land this project's own mandatory wrap-up
+writes" prose.
+
+**Why:** Raised during the same Zenny session (2026-09-01) as the entry
+above - a genuinely portable-plugin-level idea, not Zenny-specific (Zenny
+itself uses the raw Wiki, not `project-memory`, so this wouldn't change
+anything for Zenny's own migration). Right now gstack-pilot's chains defer
+entirely to "this project's own protocol if its CLAUDE.md names one" -
+that already works for a `project-memory`-using project today (its own
+CLAUDE.md can just say "write facts via project-memory's commands"), so
+this would be an optimization/convenience, not closing a real gap.
+
+**Pros:** Would remove one indirection for `project-memory` users
+specifically - the chain "just knows" to use the right mechanism instead
+of relying on the project's own CLAUDE.md to spell it out.
+
+**Cons:** No project has hit the generic "defer to this project's own
+protocol" mechanism as insufficient yet. Building project-memory-specific
+branching into gstack-pilot's own native commands is real coupling
+between two separate plugins that currently have zero direct dependency
+on each other - worth being sure the generic mechanism is actually
+inadequate before adding it.
+
+**Context:** Raised alongside the Zenny -> gstack-pilot migration; see
+Zenny's Wiki entry for that migration (cross-referenced from `Wiki/
+reference/gstack-pilot-plugin.md`) for the full raw idea as the human
+phrased it.
+
+**Depends on / blocked by:** A real project using both `gstack-pilot` and
+`project-memory` together, hitting the generic mechanism as actually
+insufficient in practice - not yet observed anywhere.

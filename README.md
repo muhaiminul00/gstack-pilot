@@ -95,8 +95,10 @@ configure once and forget:
   stale base, and checks the task's declared scope against currently
   open PRs for a real collision with someone else's in-flight work —
   structurally enforced by a hook, not just prose. Wrap-up goes
-  PR-first every time: branch → PR → gstack's `review` → `qa` → `ship`
-  → merge, with `document-release` firing automatically inside `ship`.
+  PR-first by default: branch → PR → gstack's `review` → `qa` → `ship`
+  → merge, with `document-release` firing automatically inside `ship`
+  (a project can declare its own narrow trivial-housekeeping exemption
+  in its CLAUDE.md, since v1.6.0 — see Releases below).
 
 Approve a plan in Commander and it hands off to Execute on its own — you
 never have to remember to type `/gstack-pilot:execute` yourself.
@@ -379,7 +381,50 @@ compares this field and does nothing for already-installed copies if
 it's unchanged — **every user-facing change needs a version bump
 alongside it**, not after the fact.
 
-Current release: **v1.3.1**. Patch bump over v1.3.0: README trim — the
+Current release: **v1.6.0**. Minor bump over v1.5.1: the PR-first
+wrap-up chain default is now a narrow, opt-in override — if a
+project's own CLAUDE.md already declares its own trivial-housekeeping
+exemption for its git workflow (e.g. "a state-doc-only or Wiki-only
+change with no code/workflow riding along goes direct-to-main"),
+Execute honors that instead of forcing every wrap-up through the full
+review→qa→ship pipeline. Absent that declaration, PR-first-always is
+unchanged — still the default that distinguishes this plugin from
+plain `role-modes`. Landed as part of Zenny's own migration onto this
+plugin (its `docs/designs/zenny-gstack-pilot-migration.md`) — the
+human reconsidered after an outside-voice pass called forcing a
+1-line status update through a full PR pure process overhead with no
+corresponding safety gain.
+
+Prior release: **v1.5.1**. Patch bump over v1.5.0: README's Install
+section brought in line with `TEAM_SETUP.md`'s already-proven
+message-delegation pattern for the gstack global-install step, a
+`claude plugin marketplace add` CLI-equivalent added alongside
+`/plugin` for this plugin's own install, and `/gstack-pilot:init`'s
+must-do status made louder right where it's introduced — closing a
+real first-use mistake (plugin shows installed, does nothing until
+that step runs).
+
+Minor bump in v1.5.0 over v1.4.0: a narrow `--allow-dirty` flag on
+`pre-flight-sync.js`, closing a real live-hit deadlock on `zm-brain` —
+a Build Card whose entire deliverable was committing the repo's
+already-dirty tree had no path through the pre-flight gate short of
+routing mutations around it via Bash. Execute passes it only when a
+Build Card's Objective explicitly is committing the current working
+tree; `hooks/pre-tool-use.js` is untouched, only Step 1 of the sync
+script is affected.
+
+Minor bump in v1.4.0 over v1.3.1: Execute gained a bounded mid-run
+planning/investigation chain — a fork inside the existing
+decision-needed STOP, not a new STOP category. When stuck on
+something genuinely research-answerable (an architecture mismatch, an
+unclear bug root cause, a security question) Execute gets one attempt
+at the matching gstack skill (`investigate`/`plan-eng-review`/`cso`/
+`office-hours`, or its own judgment) before resuming; still stuck
+after that one attempt escalates to the existing STOP, and any
+resolution implying scope change still trips the existing
+design-change STOP rather than silently expanding it.
+
+Patch bump in v1.3.1 over v1.3.0: README trim — the
 "Repo hygiene" section (our own internal git-tracking process for
 `docs/build-cards`/`docs/designs`, no relevance to plugin users) was
 removed entirely, and "What's different from role-modes" was cut from
@@ -387,7 +432,7 @@ a full feature-comparison table down to a short paragraph stating the
 one thing that actually matters to a reader: the shared `mode.json`
 path and never-co-install rule. Docs-only, no behavior change.
 
-Prior release: **v1.3.0**. Minor bump over v1.2.1: four repo-hygiene/
+Minor bump in v1.3.0 over v1.2.1: four repo-hygiene/
 onboarding fixes. `docs/build-cards/` and `docs/designs/` are now
 `.gitignore`d (kept on disk, no longer public); the Install section
 now states gstack as a mandatory prerequisite, moved before the

@@ -41,13 +41,14 @@ It should not silently plan the work itself, and it should not misroute
 already-scoped work to `office-hours` just because the request is phrased
 tentatively ("propose", "consider", "revive").
 
-## 5. Wrap-up is PR-first, no exceptions
+## 5. Wrap-up is PR-first by default
 
 Approve a real (even tiny) piece of work and let Execute run it to
 completion. Wrap-up should go: feature branch → PR → gstack's `review` →
 `qa` → `ship` chain → merge. There should be no "this is too small, I'll
-just commit to main" exception — that's a deliberate design choice in this
-plugin, not an oversight to work around.
+just commit to main" exception unless *this project's own CLAUDE.md*
+declares a narrow trivial-housekeeping exemption (v1.6.0+) — a project
+that hasn't declared one should never see Execute skip the chain.
 
 ## 6. Missing gstack is disclosed, not silently skipped
 

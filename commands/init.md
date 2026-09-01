@@ -40,8 +40,9 @@ with the plugin name, so a bare `/commander` will not resolve to this command.
   safe/read-only single-file actions directly, hands off anything else to
   `/gstack-pilot:execute`.
 - `/gstack-pilot:execute` - full build authority within an approved scope of
-  work; wraps up PR-first (no trivial-housekeeping exemption) through gstack's
-  review -> qa -> ship chain before merging.
+  work; wraps up PR-first by default (a project can declare its own narrow
+  trivial-housekeeping exemption) through gstack's review -> qa -> ship chain
+  before merging.
 
 **Mode-gstack Bridge - this section only, not a routing table:** the two bullets
 above are the actual mode->skill chain this plugin fires automatically. If this
