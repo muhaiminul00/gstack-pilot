@@ -1,7 +1,7 @@
 {
   "name": "gstack-pilot",
   "description": "Portable three-mode operating system for Claude Code (Advisor/Commander/Execute), natively chained into the gstack skill suite - Commander's planning phase chains into gstack's office-hours/plan-eng-review/autoplan, Execute's wrap-up chains into gstack's review/qa/ship on a PR-first flow. Sibling plugin to role-modes, for projects that also run gstack.",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "author": {
     "name": "Muhaiminul Abedin Farhan",
     "url": "https://github.com/muhaiminul00"
